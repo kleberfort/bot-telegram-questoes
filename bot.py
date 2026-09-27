@@ -1,12 +1,14 @@
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-
+import os
 
 # ============================================================
 # TOKEN DO BOT
 # ============================================================
 
-TOKEN = "SEU_NOVO_TOKEN_AQUI"
+
+
+TOKEN = os.getenv("TOKEN")
 
 # ============================================================
 # BANCO DE QUESTÕES
