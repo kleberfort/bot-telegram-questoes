@@ -280,6 +280,72 @@ async def resposta(update: Update, context: ContextTypes.DEFAULT_TYPE):
         mensagem = f"""
 ✅ CORRETO!
 
+async def proxima_questao(update, context):
+    consulta = update.callback_query
+    await consulta.answer()
+
+    # Pega o número da questão atual
+    partes = consulta.data.split("_")
+    id_atual = int(partes[1])
+
+    # Calcula o ID da próxima questão
+    proximo_id = id_atual + 1
+
+    # Procura a próxima questão
+    questao = next(
+        (q for q in QUESTOES if q["id"] == proximo_id),
+        None
+    )
+
+    # Se não existir próxima questão
+    if questao is None:
+        await consulta.message.reply_text(
+            "🎉 Você chegou ao final das questões!"
+        )
+        return
+
+    # Cria os botões A, B, C e D
+    botoes = [
+        [
+            InlineKeyboardButton(
+                "A",
+                callback_data=f"questao_{questao['id']}_A"
+            ),
+            InlineKeyboardButton(
+                "B",
+                callback_data=f"questao_{questao['id']}_B"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "C",
+                callback_data=f"questao_{questao['id']}_C"
+            ),
+            InlineKeyboardButton(
+                "D",
+                callback_data=f"questao_{questao['id']}_D"
+            )
+        ]
+    ]
+
+    teclado = InlineKeyboardMarkup(botoes)
+
+    texto = f"""
+{questao["pergunta"]}
+
+🅰️ {questao["alternativas"]["A"]}
+🅱️ {questao["alternativas"]["B"]}
+©️ {questao["alternativas"]["C"]}
+🅳️ {questao["alternativas"]["D"]}
+
+👇 Escolha uma alternativa:
+"""
+
+    await consulta.message.reply_text(
+        texto,
+        reply_markup=teclado
+    )
+
 Você marcou: {alternativa}
 
 🎯 Gabarito: {gabarito}
