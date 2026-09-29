@@ -250,6 +250,71 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 # ============================================================
+# MENU — DATAPREV
+# ============================================================
+
+async def menu_dataprev(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
+
+    consulta = update.callback_query
+
+    await consulta.answer()
+
+    # Começa pela primeira questão
+    questao = QUESTOES[0]
+
+    botoes = [
+
+        [
+            InlineKeyboardButton(
+                "A",
+                callback_data=f"questao_{questao['id']}_A"
+            ),
+
+            InlineKeyboardButton(
+                "B",
+                callback_data=f"questao_{questao['id']}_B"
+            )
+        ],
+
+        [
+            InlineKeyboardButton(
+                "C",
+                callback_data=f"questao_{questao['id']}_C"
+            ),
+
+            InlineKeyboardButton(
+                "D",
+                callback_data=f"questao_{questao['id']}_D"
+            )
+        ]
+
+    ]
+
+    teclado = InlineKeyboardMarkup(botoes)
+
+    texto = f"""
+{questao["pergunta"]}
+
+🅰️ {questao["alternativas"]["A"]}
+
+🅱️ {questao["alternativas"]["B"]}
+
+©️ {questao["alternativas"]["C"]}
+
+🅳️ {questao["alternativas"]["D"]}
+
+👇 Escolha uma alternativa:
+"""
+
+    await consulta.message.reply_text(
+        texto,
+        reply_markup=teclado
+    )
+
+# ============================================================
 # PROCESSAR RESPOSTA
 # ============================================================
 
@@ -550,6 +615,13 @@ def main():
     CommandHandler(
         "start",
         menu
+    )
+)
+
+    app.add_handler(
+    CallbackQueryHandler(
+        menu_dataprev,
+        pattern="^menu_dataprev$"
     )
 )
 
