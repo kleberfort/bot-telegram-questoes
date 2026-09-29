@@ -196,6 +196,58 @@ async def iniciar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=teclado
     )
 
+# ============================================================
+# MENU PRINCIPAL
+# ============================================================
+
+async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    botoes = [
+
+        [
+            InlineKeyboardButton(
+                "📊 Dataprev",
+                callback_data="menu_dataprev"
+            )
+        ],
+
+        [
+            InlineKeyboardButton(
+                "🗄️ Banco de Dados",
+                callback_data="menu_banco"
+            )
+        ],
+
+        [
+            InlineKeyboardButton(
+                "🐍 Python",
+                callback_data="menu_python"
+            )
+        ],
+
+        [
+            InlineKeyboardButton(
+                "🇬🇧 Inglês",
+                callback_data="menu_ingles"
+            )
+        ],
+
+        [
+            InlineKeyboardButton(
+                "📝 Português",
+                callback_data="menu_portugues"
+            )
+        ]
+
+    ]
+
+    teclado = InlineKeyboardMarkup(botoes)
+
+    await update.message.reply_text(
+        "📚 QUESTÕES CONCURSO\n\n"
+        "Escolha a disciplina:",
+        reply_markup=teclado
+    )
 
 # ============================================================
 # PROCESSAR RESPOSTA
@@ -495,11 +547,11 @@ def main():
     # ========================================================
 
     app.add_handler(
-        CommandHandler(
-            "start",
-            iniciar
-        )
+    CommandHandler(
+        "start",
+        menu
     )
+)
 
 
     # ========================================================
@@ -559,4 +611,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
