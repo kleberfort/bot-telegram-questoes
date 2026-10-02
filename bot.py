@@ -1,4 +1,5 @@
 
+
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -14,7 +15,9 @@ import questoes
 def main():
     # Testa a conexão com o MongoDB
     if not testar_conexao():
-        raise SystemExit("Não foi possível conectar ao MongoDB.")
+        raise SystemExit(
+            "Não foi possível conectar ao MongoDB."
+        )
 
     # Cria a aplicação do Telegram
     app = Application.builder().token(TOKEN).build()
@@ -53,7 +56,7 @@ def main():
         )
     )
 
-    # Questões
+    # Respostas das questões
     app.add_handler(
         CallbackQueryHandler(
             questoes.responder,
@@ -61,6 +64,7 @@ def main():
         )
     )
 
+    # Avanço das questões
     app.add_handler(
         CallbackQueryHandler(
             questoes.proxima,

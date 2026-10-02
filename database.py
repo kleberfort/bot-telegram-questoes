@@ -1,5 +1,3 @@
-
-
 from pymongo import MongoClient
 from config import MONGODB_URI
 
@@ -25,3 +23,5 @@ def testar_conexao():
     except Exception as erro:
         print(f"Erro ao conectar ao MongoDB: {erro}")
         return False
+
+

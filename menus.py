@@ -1,3 +1,4 @@
+
 from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -12,14 +13,28 @@ import questoes
 def montar_teclado(opcoes, prefixo):
     botoes = []
 
-    for i, opcao in enumerate(opcoes):
-        botoes.append([
+    # Coloca 2 opções por linha
+    for i in range(0, len(opcoes), 2):
+        linha = []
+
+        linha.append(
             InlineKeyboardButton(
-                opcao,
+                opcoes[i],
                 callback_data=f"{prefixo}:{i}"
             )
-        ])
+        )
 
+        if i + 1 < len(opcoes):
+            linha.append(
+                InlineKeyboardButton(
+                    opcoes[i + 1],
+                    callback_data=f"{prefixo}:{i + 1}"
+                )
+            )
+
+        botoes.append(linha)
+
+    # Botão voltar
     botoes.append([
         InlineKeyboardButton(
             "⬅️ Voltar ao início",
@@ -57,7 +72,7 @@ async def selecionar_disciplina(
     indice = int(consulta.data.split(":")[1])
     disciplinas = context.user_data.get("opcoes", [])
 
-    if indice >= len(disciplinas):
+    if indice < 0 or indice >= len(disciplinas):
         await consulta.message.reply_text(
             "Opção inválida. Digite /start."
         )
@@ -92,7 +107,7 @@ async def selecionar_topico(
     indice = int(consulta.data.split(":")[1])
     topicos = context.user_data.get("opcoes", [])
 
-    if indice >= len(topicos):
+    if indice < 0 or indice >= len(topicos):
         await consulta.message.reply_text(
             "Opção inválida. Digite /start."
         )
@@ -132,7 +147,7 @@ async def selecionar_assunto(
     indice = int(consulta.data.split(":")[1])
     assuntos = context.user_data.get("opcoes", [])
 
-    if indice >= len(assuntos):
+    if indice < 0 or indice >= len(assuntos):
         await consulta.message.reply_text(
             "Opção inválida. Digite /start."
         )
@@ -155,9 +170,18 @@ async def selecionar_assunto(
         )
         return
 
+    # Registra o conteúdo escolhido
+    context.user_data["assunto"] = assunto
+
+    # Inicializa o questionário
     context.user_data["questoes"] = questoes_encontradas
     context.user_data["indice_questao"] = 0
+    context.user_data["respondida"] = False
 
+    # Zera o desempenho do novo questionário
+    questoes.iniciar_desempenho(context)
+
+    # Exibe a primeira questão
     await questoes.exibir_questao(
         consulta.message,
         context
@@ -170,6 +194,13 @@ async def voltar_inicio(
 ):
     consulta = update.callback_query
     await consulta.answer()
+
+    # Encerra o questionário atual
+    context.user_data.pop("questoes", None)
+    context.user_data.pop("indice_questao", None)
+    context.user_data.pop("respondida", None)
+    context.user_data.pop("desempenho", None)
+    context.user_data.pop("assunto", None)
 
     disciplinas = repositorio.listar_disciplinas()
     context.user_data["opcoes"] = disciplinas
