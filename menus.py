@@ -197,21 +197,27 @@ async def selecionar_assunto(
     )
 
 
-async def voltar_inicio(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+async def voltar_inicio(update, context):
     consulta = update.callback_query
     await consulta.answer()
 
-    # Encerra o questionário atual
+    # Limpa os dados da navegação e do questionário
     context.user_data.pop("questoes", None)
     context.user_data.pop("indice_questao", None)
     context.user_data.pop("respondida", None)
     context.user_data.pop("desempenho", None)
     context.user_data.pop("assunto", None)
+    context.user_data.pop("disciplina", None)
+    context.user_data.pop("topico", None)
 
     disciplinas = repositorio.listar_disciplinas()
+
+    if not disciplinas:
+        await consulta.message.reply_text(
+            "Nenhuma disciplina foi cadastrada."
+        )
+        return
+
     context.user_data["opcoes"] = disciplinas
 
     await consulta.message.reply_text(

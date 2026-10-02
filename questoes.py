@@ -1,7 +1,18 @@
+
 from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup
 )
+
+
+def iniciar_desempenho(context):
+    """Reinicia os dados de desempenho de um novo questionário."""
+    context.user_data["desempenho"] = {
+        "total": 0,
+        "acertos": 0,
+        "erros": 0,
+        "questoes_erradas": []
+    }
 
 
 async def exibir_questao(mensagem, context):
@@ -9,9 +20,38 @@ async def exibir_questao(mensagem, context):
     indice = context.user_data.get("indice_questao", 0)
 
     if indice >= len(questoes):
-        await mensagem.reply_text(
-            "🎉 Você chegou ao final das questões!"
+        desempenho = context.user_data.get("desempenho", {})
+        total = desempenho.get("total", 0)
+        acertos = desempenho.get("acertos", 0)
+        erros = desempenho.get("erros", 0)
+
+        porcentagem = (acertos / total * 100) if total > 0 else 0
+
+        texto = (
+            "🎉 QUESTIONÁRIO FINALIZADO!\n\n"
+            f"📚 Conteúdo: {context.user_data.get('assunto', 'Geral')}\n\n"
+            f"📝 Questões respondidas: {total}\n"
+            f"✅ Acertos: {acertos}\n"
+            f"❌ Erros: {erros}\n"
+            f"🎯 Aproveitamento: {porcentagem:.2f}%\n"
         )
+
+        questoes_erradas = desempenho.get("questoes_erradas", [])
+
+        if questoes_erradas:
+            texto += "\n❌ QUESTÕES QUE VOCÊ ERROU:\n\n"
+
+            for item in questoes_erradas:
+                texto += (
+                    f"Questão {item['numero']}\n"
+                    f"{item['enunciado']}\n"
+                    f"Você marcou: {item['marcada']}\n"
+                    f"Gabarito: {item['gabarito']}\n\n"
+                )
+        else:
+            texto += "\n🏆 Parabéns! Você não errou nenhuma questão."
+
+        await mensagem.reply_text(texto)
         return
 
     questao = questoes[indice]
@@ -45,76 +85,83 @@ async def exibir_questao(mensagem, context):
 async def responder(update, context):
     consulta = update.callback_query
 
-    # Verifica se a questão já foi respondida
     if context.user_data.get("respondida"):
         await consulta.answer(
-            "Você já respondeu está questão.",
+            "Você já respondeu esta questão.",
             show_alert=True
         )
         return
 
-    # Confirma o clique ao Telegram 
     await consulta.answer()
 
-    # Recupera a alternativa escolhida 
-    alternativa = consulta.data.split(":")[1] 
+    # Remove os botões da questão respondida
+    await consulta.edit_message_reply_markup(reply_markup=None)
 
-    # Recupera as questões e o índice atual 
-    questoes = context.user_data.get("questoes", []) 
+    alternativa = consulta.data.split(":")[1].upper()
+    questoes = context.user_data.get("questoes", [])
     indice = context.user_data.get("indice_questao", 0)
 
-    # Verifica se existe uma questão 
-    if indice >= len(questoes): 
-        await consulta.message.reply_text( 
-            "Questão não encontrada. Digite /start." 
-        ) 
+    if indice >= len(questoes):
+        await consulta.message.reply_text(
+            "Questão não encontrada. Digite /start."
+        )
         return
-# Recupera os dados da questão
+
     questao = questoes[indice]
     gabarito = questao.get("resposta", "").upper()
     comentario = questao.get("comentario", "")
 
-# Marca a questão como respondida 
+    desempenho = context.user_data.setdefault("desempenho", {
+        "total": 0,
+        "acertos": 0,
+        "erros": 0,
+        "questoes_erradas": []
+    })
+
     context.user_data["respondida"] = True
+    desempenho["total"] += 1
 
-# Verifica a resposta 
-    if alternativa == gabarito: 
-        resultado = "✅ CORRETO!" 
-    else: 
+    if alternativa == gabarito:
+        resultado = "✅ CORRETO!"
+        desempenho["acertos"] += 1
+    else:
         resultado = "❌ INCORRETO!"
+        desempenho["erros"] += 1
 
-# Monta a mensagem 
-    texto = ( 
-        f"{resultado}\n\n" 
-        f"Você marcou: {alternativa}\n" 
-        f"Gabarito: {gabarito}\n\n" 
-        f"📖 COMENTÁRIO\n\n{comentario}" 
+        desempenho["questoes_erradas"].append({
+            "numero": indice + 1,
+            "assunto": questao.get("assunto", ""),
+            "enunciado": questao.get("enunciado", ""),
+            "marcada": alternativa,
+            "gabarito": gabarito
+        })
+
+    texto = (
+        f"{resultado}\n\n"
+        f"Você marcou: {alternativa}\n"
+        f"Gabarito: {gabarito}\n\n"
+        f"📖 COMENTÁRIO\n\n{comentario}"
     )
 
+    botoes = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(
+                "➡️ Próxima questão",
+                callback_data="proxima"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "🏠 Voltar ao início",
+                callback_data="inicio"
+            )
+        ]
+    ])
 
-# Cria os botões 
-    botoes = InlineKeyboardMarkup([ 
-    [ 
-    InlineKeyboardButton( 
-    "➡️ Próxima questão", 
-    callback_data="proxima" 
-) 
-], 
-[ 
-    InlineKeyboardButton( 
-    "🏠 Voltar ao início", 
-    callback_data="inicio" 
-) 
-] 
-])
-
-
-# Envia o resultado 
-    await consulta.message.reply_text( 
-    texto, 
-    reply_markup=botoes 
+    await consulta.message.reply_text(
+        texto,
+        reply_markup=botoes
     )
-
 
 async def proxima(update, context):
     consulta = update.callback_query
