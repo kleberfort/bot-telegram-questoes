@@ -21,6 +21,7 @@ async def exibir_questao(mensagem, context):
 
     if indice >= len(questoes):
         desempenho = context.user_data.get("desempenho", {})
+
         total = desempenho.get("total", 0)
         acertos = desempenho.get("acertos", 0)
         erros = desempenho.get("erros", 0)
@@ -36,22 +37,35 @@ async def exibir_questao(mensagem, context):
             f"🎯 Aproveitamento: {porcentagem:.2f}%\n"
         )
 
+        # Envia o resumo separadamente
+        await mensagem.reply_text(texto)
+
         questoes_erradas = desempenho.get("questoes_erradas", [])
 
         if questoes_erradas:
-            texto += "\n❌ QUESTÕES QUE VOCÊ ERROU:\n\n"
+            await mensagem.reply_text(
+                "❌ QUESTÕES QUE VOCÊ ERROU:"
+            )
 
             for item in questoes_erradas:
-                texto += (
-                    f"Questão {item['numero']}\n"
-                    f"{item['enunciado']}\n"
+                texto_erro = (
+                    f"Questão {item['numero']}\n\n"
+                    f"{item['enunciado']}\n\n"
                     f"Você marcou: {item['marcada']}\n"
-                    f"Gabarito: {item['gabarito']}\n\n"
+                    f"Gabarito: {item['gabarito']}"
                 )
-        else:
-            texto += "\n🏆 Parabéns! Você não errou nenhuma questão."
 
-        await mensagem.reply_text(texto)
+                # Divide textos muito grandes em blocos
+                limite = 3500
+
+                for inicio in range(0, len(texto_erro), limite):
+                    parte = texto_erro[inicio:inicio + limite]
+                    await mensagem.reply_text(parte)
+        else:
+            await mensagem.reply_text(
+                "🏆 Parabéns! Você não errou nenhuma questão."
+            )
+
         return
 
     questao = questoes[indice]
@@ -166,7 +180,12 @@ async def responder(update, context):
 async def proxima(update, context):
     consulta = update.callback_query
 
-    if not context.user_data.get("respondida"):
+    indice = context.user_data.get("indice_questao", 0)
+    questoes = context.user_data.get("questoes", [])
+    respondida = context.user_data.get("respondida", False)
+
+    # Só exige resposta se ainda houver uma questão para responder
+    if indice < len(questoes) and not respondida:
         await consulta.answer(
             "Responda à questão antes de avançar.",
             show_alert=True
@@ -175,10 +194,10 @@ async def proxima(update, context):
 
     await consulta.answer()
 
-    context.user_data["indice_questao"] += 1
-    context.user_data["respondida"] = False
+    # Avança apenas se a questão atual foi respondida
+    if indice < len(questoes) and respondida:
+        context.user_data["indice_questao"] += 1
+        context.user_data["respondida"] = False
 
-    await exibir_questao(
-        consulta.message,
-        context
-    )
+    # Exibe a próxima questão ou o resumo final
+    await exibir_questao(consulta.message, context)
