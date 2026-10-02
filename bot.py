@@ -1,470 +1,360 @@
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+
 import os
-
+import logging
+from dotenv import load_dotenv
+from pymongo import MongoClient
+from telegram import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Update
+)
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    CallbackQueryHandler,
+    ContextTypes
+)
 
 # ============================================================
-# TOKEN DO BOT
+# CONFIGURAÇÕES
 # ============================================================
+
+load_dotenv()
 
 TOKEN = os.getenv("TOKEN")
+MONGODB_URI = os.getenv("MONGODB_URI")
 
+if not TOKEN:
+    raise ValueError("TOKEN não encontrado no arquivo .env")
 
-# ============================================================
-# BANCO DE QUESTÕES
-# ============================================================
+if not MONGODB_URI:
+    raise ValueError("MONGODB_URI não encontrada no arquivo .env")
 
-QUESTOES = [
+cliente = MongoClient(MONGODB_URI)
+db = cliente["questoes_concurso"]
+colecao = db["questoes"]
 
-    {
-        "id": 1,
-
-        "pergunta": """🧠 QUESTÃO 01 — PLN
-
-Qual sequência apresenta corretamente os estágios do fluxo de
-Processamento de Linguagem Natural?""",
-
-        "alternativas": {
-
-            "A": "Pré-processamento → Análise léxica → Análise tradutória → Análise intencional → Análise verificadora",
-
-            "B": "Pré-processamento → Análise léxica → Análise sintática → Análise semântica → Análise pragmática",
-
-            "C": "Pré-processamento → Análise tradutória → Análise sintática → Análise verificadora",
-
-            "D": "Pré-processamento → Análise tradutória → Análise pragmática → Análise sintática"
-        },
-
-        "gabarito": "B",
-
-        "explicacao": """
-📖 EXPLICAÇÃO
-
-O Processamento de Linguagem Natural (PLN) é uma área da
-Inteligência Artificial que busca permitir que computadores
-processem e compreendam a linguagem humana.
-
-A sequência correta é:
-
-1️⃣ Pré-processamento
-2️⃣ Análise léxica
-3️⃣ Análise sintática
-4️⃣ Análise semântica
-5️⃣ Análise pragmática
-
-🔹 Pré-processamento
-
-É a etapa de preparação do texto para as etapas seguintes.
-
-🔹 Análise léxica
-
-Analisa as unidades que formam o texto, como palavras e tokens.
-
-🔹 Análise sintática
-
-Analisa a estrutura da frase e a relação entre seus elementos.
-
-🔹 Análise semântica
-
-Analisa o significado da frase e das relações entre seus elementos.
-
-🔹 Análise pragmática
-
-Considera o contexto em que a mensagem foi utilizada.
-
-🎯 CONCLUSÃO
-
-A alternativa correta é B.
-"""
-    },
-
-
-    {
-        "id": 2,
-
-        "pergunta": """🧠 QUESTÃO 02
-
-Qual é a finalidade principal da Inteligência Artificial?""",
-
-        "alternativas": {
-
-            "A": "Criar sistemas capazes de realizar tarefas que normalmente exigiriam inteligência humana.",
-
-            "B": "Aumentar exclusivamente a velocidade dos computadores.",
-
-            "C": "Substituir todos os seres humanos.",
-
-            "D": "Criar apenas programas para cálculos matemáticos."
-        },
-
-        "gabarito": "A",
-
-        "explicacao": """
-📖 EXPLICAÇÃO
-
-A Inteligência Artificial busca desenvolver sistemas capazes
-de executar tarefas associadas à inteligência humana.
-
-Entre essas tarefas estão:
-
-• reconhecimento de padrões;
-• aprendizagem;
-• compreensão de linguagem;
-• tomada de decisões;
-• resolução de problemas.
-
-🎯 CONCLUSÃO
-
-A alternativa correta é A.
-"""
-    }
-
-]
-
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
 
 # ============================================================
-# COMANDO /START
+# FUNÇÕES AUXILIARES
 # ============================================================
 
-async def iniciar(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def criar_teclado(opcoes, prefixo):
+    botoes = []
 
-    # Começa sempre pela primeira questão
-    questao = QUESTOES[0]
-
-
-    # --------------------------------------------------------
-    # Cria os botões A, B, C e D
-    # --------------------------------------------------------
-
-    botoes = [
-
-        [
+    for i, opcao in enumerate(opcoes):
+        botoes.append([
             InlineKeyboardButton(
-                "A",
-                callback_data=f"questao_{questao['id']}_A"
-            ),
-
-            InlineKeyboardButton(
-                "B",
-                callback_data=f"questao_{questao['id']}_B"
+                opcao,
+                callback_data=f"{prefixo}:{i}"
             )
-        ],
+        ])
 
-        [
-            InlineKeyboardButton(
-                "C",
-                callback_data=f"questao_{questao['id']}_C"
-            ),
-
-            InlineKeyboardButton(
-                "D",
-                callback_data=f"questao_{questao['id']}_D"
-            )
-        ]
-
-    ]
+    return InlineKeyboardMarkup(botoes)
 
 
-    teclado = InlineKeyboardMarkup(botoes)
+def obter_lista_distinta(campo, filtro=None):
+    filtro = filtro or {}
+
+    valores = colecao.distinct(campo, filtro)
+
+    return sorted(
+        [valor for valor in valores if valor],
+        key=str.casefold
+    )
 
 
-    # --------------------------------------------------------
-    # Monta o texto da questão
-    # --------------------------------------------------------
+async def mostrar_menu(
+    consulta,
+    context,
+    titulo,
+    opcoes,
+    tipo
+):
+    if not opcoes:
+        await consulta.message.reply_text(
+            "Não há opções cadastradas nesta etapa."
+        )
+        return
 
-    texto = f"""
-{questao["pergunta"]}
+    # Guarda as opções para recuperar pelo índice do botão
+    context.user_data[f"opcoes_{tipo}"] = opcoes
 
-🅰️ {questao["alternativas"]["A"]}
+    teclado = criar_teclado(opcoes, tipo)
 
-🅱️ {questao["alternativas"]["B"]}
-
-©️ {questao["alternativas"]["C"]}
-
-🅳️ {questao["alternativas"]["D"]}
-
-👇 Escolha uma alternativa:
-"""
-
-
-    # --------------------------------------------------------
-    # Envia a questão para o Telegram
-    # --------------------------------------------------------
-
-    await update.message.reply_text(
-        texto,
+    await consulta.message.reply_text(
+        titulo,
         reply_markup=teclado
     )
+
 
 # ============================================================
 # MENU PRINCIPAL
 # ============================================================
 
-async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    botoes = [
-
-        [
-            InlineKeyboardButton(
-                "📊 Dataprev",
-                callback_data="menu_dataprev"
-            )
-        ],
-
-        [
-            InlineKeyboardButton(
-                "🗄️ Banco de Dados",
-                callback_data="menu_banco"
-            )
-        ],
-
-        [
-            InlineKeyboardButton(
-                "🐍 Python",
-                callback_data="menu_python"
-            )
-        ],
-
-        [
-            InlineKeyboardButton(
-                "🇬🇧 Inglês",
-                callback_data="menu_ingles"
-            )
-        ],
-
-        [
-            InlineKeyboardButton(
-                "📝 Português",
-                callback_data="menu_portugues"
-            )
-        ]
-
-    ]
-
-    teclado = InlineKeyboardMarkup(botoes)
-
-    await update.message.reply_text(
-        "📚 QUESTÕES CONCURSO\n\n"
-        "Escolha a disciplina:",
-        reply_markup=teclado
-    )
-
-# ============================================================
-# MENU — DATAPREV
-# ============================================================
-
-async def menu_dataprev(
+async def iniciar(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ):
+    disciplinas = obter_lista_distinta("disciplina")
 
-    consulta = update.callback_query
+    botoes = []
 
-    await consulta.answer()
-
-    # Começa pela primeira questão
-    questao = QUESTOES[0]
-
-    botoes = [
-
-        [
+    for i, disciplina in enumerate(disciplinas):
+        botoes.append([
             InlineKeyboardButton(
-                "A",
-                callback_data=f"questao_{questao['id']}_A"
-            ),
-
-            InlineKeyboardButton(
-                "B",
-                callback_data=f"questao_{questao['id']}_B"
+                disciplina,
+                callback_data=f"disc:{i}"
             )
-        ],
+        ])
 
-        [
-            InlineKeyboardButton(
-                "C",
-                callback_data=f"questao_{questao['id']}_C"
-            ),
+    if not botoes:
+        await update.message.reply_text(
+            "Ainda não existem disciplinas cadastradas."
+        )
+        return
 
-            InlineKeyboardButton(
-                "D",
-                callback_data=f"questao_{questao['id']}_D"
-            )
-        ]
+    context.user_data["opcoes_disc"] = disciplinas
 
-    ]
-
-    teclado = InlineKeyboardMarkup(botoes)
-
-    texto = f"""
-{questao["pergunta"]}
-
-🅰️ {questao["alternativas"]["A"]}
-
-🅱️ {questao["alternativas"]["B"]}
-
-©️ {questao["alternativas"]["C"]}
-
-🅳️ {questao["alternativas"]["D"]}
-
-👇 Escolha uma alternativa:
-"""
-
-    await consulta.message.reply_text(
-        texto,
-        reply_markup=teclado
+    await update.message.reply_text(
+        "📚 QUESTÕES CONCURSO\n\n"
+        "Escolha uma disciplina:",
+        reply_markup=InlineKeyboardMarkup(botoes)
     )
 
+
 # ============================================================
-# PROCESSAR RESPOSTA
+# SELECIONAR DISCIPLINA
+# ============================================================
+
+async def selecionar_disciplina(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
+    consulta = update.callback_query
+    await consulta.answer()
+
+    indice = int(consulta.data.split(":")[1])
+    disciplinas = context.user_data.get("opcoes_disc", [])
+
+    if indice >= len(disciplinas):
+        await consulta.message.reply_text(
+            "Menu desatualizado. Digite /start."
+        )
+        return
+
+    disciplina = disciplinas[indice]
+    context.user_data["disciplina"] = disciplina
+
+    topicos = obter_lista_distinta(
+        "topico",
+        {"disciplina": disciplina}
+    )
+
+    await mostrar_menu(
+        consulta,
+        context,
+        f"📚 {disciplina}\n\nEscolha um tópico:",
+        topicos,
+        "top"
+    )
+
+
+# ============================================================
+# SELECIONAR TÓPICO
+# ============================================================
+
+async def selecionar_topico(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
+    consulta = update.callback_query
+    await consulta.answer()
+
+    indice = int(consulta.data.split(":")[1])
+    topicos = context.user_data.get("opcoes_top", [])
+
+    if indice >= len(topicos):
+        await consulta.message.reply_text(
+            "Menu desatualizado. Digite /start."
+        )
+        return
+
+    topico = topicos[indice]
+    disciplina = context.user_data["disciplina"]
+
+    context.user_data["topico"] = topico
+
+    assuntos = obter_lista_distinta(
+        "assunto",
+        {
+            "disciplina": disciplina,
+            "topico": topico
+        }
+    )
+
+    await mostrar_menu(
+        consulta,
+        context,
+        f"🧠 {topico}\n\nEscolha um assunto:",
+        assuntos,
+        "ass"
+    )
+
+
+# ============================================================
+# SELECIONAR ASSUNTO E CARREGAR QUESTÕES
+# ============================================================
+
+async def selecionar_assunto(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
+    consulta = update.callback_query
+    await consulta.answer()
+
+    indice = int(consulta.data.split(":")[1])
+    assuntos = context.user_data.get("opcoes_ass", [])
+
+    if indice >= len(assuntos):
+        await consulta.message.reply_text(
+            "Menu desatualizado. Digite /start."
+        )
+        return
+
+    assunto = assuntos[indice]
+
+    filtro = {
+        "disciplina": context.user_data["disciplina"],
+        "topico": context.user_data["topico"],
+        "assunto": assunto
+    }
+
+    questoes = list(colecao.find(filtro))
+
+    if not questoes:
+        await consulta.message.reply_text(
+            "Não há questões cadastradas para esse assunto."
+        )
+        return
+
+    context.user_data["questoes"] = questoes
+    context.user_data["indice_questao"] = 0
+    context.user_data["assunto"] = assunto
+
+    await enviar_questao(consulta.message, context)
+
+
+# ============================================================
+# ENVIAR QUESTÃO
+# ============================================================
+
+async def enviar_questao(mensagem, context):
+    questoes = context.user_data.get("questoes", [])
+    indice = context.user_data.get("indice_questao", 0)
+
+    if indice >= len(questoes):
+        await mensagem.reply_text(
+            "🎉 Você chegou ao final das questões!"
+        )
+        return
+
+    questao = questoes[indice]
+
+    alternativas = questao.get("alternativas", {})
+    letras = list(alternativas.keys())
+
+    texto = (
+        f"🧠 QUESTÃO {indice + 1}\n\n"
+        f"{questao.get('enunciado', 'Enunciado não informado')}\n\n"
+    )
+
+    for letra in letras:
+        texto += f"{letra}) {alternativas[letra]}\n\n"
+
+    texto += "👇 Escolha uma alternativa:"
+
+    botoes = []
+
+    for letra in letras:
+        botoes.append(
+            InlineKeyboardButton(
+                letra,
+                callback_data=f"resp:{letra}"
+            )
+        )
+
+    linhas = [
+        botoes[i:i + 2]
+        for i in range(0, len(botoes), 2)
+    ]
+
+    await mensagem.reply_text(
+        texto,
+        reply_markup=InlineKeyboardMarkup(linhas)
+    )
+
+
+# ============================================================
+# CORRIGIR RESPOSTA
 # ============================================================
 
 async def resposta(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ):
-
     consulta = update.callback_query
-
-
-    # --------------------------------------------------------
-    # Confirma ao Telegram que o clique foi recebido
-    # --------------------------------------------------------
-
     await consulta.answer()
 
+    letra = consulta.data.split(":")[1]
 
-    # --------------------------------------------------------
-    # Recupera o callback enviado pelo botão
-    #
-    # Exemplo:
-    #
-    # questao_1_B
-    #
-    # significa:
-    # Questão = 1
-    # Resposta = B
-    # --------------------------------------------------------
+    questoes = context.user_data.get("questoes", [])
+    indice = context.user_data.get("indice_questao", 0)
 
-    dados = consulta.data
-
-    print("Callback recebido:", dados)
-
-
-    # --------------------------------------------------------
-    # Separa as partes do callback
-    # --------------------------------------------------------
-
-    partes = dados.split("_")
-
-
-    # --------------------------------------------------------
-    # Verifica se o callback está no formato esperado
-    # --------------------------------------------------------
-
-    if len(partes) != 3 or partes[0] != "questao":
-
+    if indice >= len(questoes):
         await consulta.message.reply_text(
-            "⚠️ Esse botão pertence a uma versão antiga da questão.\n\n"
-            "Digite /start para receber uma nova questão."
+            "Questão não encontrada. Digite /start."
         )
-
         return
 
+    questao = questoes[indice]
+    gabarito = questao.get("resposta", "").upper()
+    comentario = questao.get("comentario", "")
 
-    # --------------------------------------------------------
-    # Identifica a questão e a alternativa escolhida
-    # --------------------------------------------------------
+    if letra == gabarito:
+        resultado = "✅ CORRETO!"
+    else:
+        resultado = "❌ INCORRETO!"
 
-    id_questao = int(partes[1])
-
-    alternativa = partes[2]
-
-
-    # --------------------------------------------------------
-    # Procura a questão dentro da lista QUESTOES
-    # --------------------------------------------------------
-
-    questao = next(
-        (
-            q for q in QUESTOES
-            if q["id"] == id_questao
-        ),
-        None
+    texto = (
+        f"{resultado}\n\n"
+        f"Você marcou: {letra}\n"
+        f"🎯 Gabarito: {gabarito}\n\n"
+        f"📖 EXPLICAÇÃO\n{comentario}"
     )
 
-
-    # --------------------------------------------------------
-    # Verifica se a questão existe
-    # --------------------------------------------------------
-
-    if questao is None:
-
-        await consulta.message.reply_text(
-            "⚠️ Questão não encontrada."
-        )
-
-        return
-
-
-    # --------------------------------------------------------
-    # Recupera gabarito e explicação
-    # --------------------------------------------------------
-
-    gabarito = questao["gabarito"]
-
-    explicacao = questao["explicacao"]
-
-
-    # --------------------------------------------------------
-    # Verifica se o usuário acertou
-    # --------------------------------------------------------
-
-    if alternativa == gabarito:
-
-        mensagem = f"""
-✅ CORRETO!
-
-Você marcou: {alternativa}
-
-🎯 Gabarito: {gabarito}
-
-{explicacao}
-"""
-
-    else:
-
-        mensagem = f"""
-❌ INCORRETO!
-
-Você marcou: {alternativa}
-
-🎯 Gabarito: {gabarito}
-
-{explicacao}
-"""
-
-
-    # ========================================================
-    # BOTÃO PRÓXIMA QUESTÃO
-    # ========================================================
-
-    botao_proxima = InlineKeyboardMarkup([
+    teclado = InlineKeyboardMarkup([
         [
             InlineKeyboardButton(
                 "➡️ PRÓXIMA QUESTÃO",
-                callback_data=f"proxima_{id_questao}"
+                callback_data="prox"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "📚 Voltar ao início",
+                callback_data="inicio"
             )
         ]
     ])
 
-
-    # --------------------------------------------------------
-    # Envia resultado + explicação + botão
-    # --------------------------------------------------------
-
     await consulta.message.reply_text(
-        mensagem,
-        reply_markup=botao_proxima
+        texto,
+        reply_markup=teclado
     )
 
 
@@ -476,210 +366,101 @@ async def proxima_questao(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ):
-
     consulta = update.callback_query
-
-
-    # --------------------------------------------------------
-    # Confirma ao Telegram que o clique foi recebido
-    # --------------------------------------------------------
-
     await consulta.answer()
 
-
-    # --------------------------------------------------------
-    # Recupera o ID da questão atual
-    #
-    # Exemplo:
-    #
-    # proxima_1
-    # --------------------------------------------------------
-
-    partes = consulta.data.split("_")
-
-    id_atual = int(partes[1])
-
-
-    # --------------------------------------------------------
-    # Calcula o ID da próxima questão
-    # --------------------------------------------------------
-
-    proximo_id = id_atual + 1
-
-
-    # --------------------------------------------------------
-    # Procura a próxima questão
-    # --------------------------------------------------------
-
-    questao = next(
-        (
-            q for q in QUESTOES
-            if q["id"] == proximo_id
-        ),
-        None
+    context.user_data["indice_questao"] = (
+        context.user_data.get("indice_questao", 0) + 1
     )
 
-
-    # --------------------------------------------------------
-    # Se não existir próxima questão
-    # --------------------------------------------------------
-
-    if questao is None:
-
-        await consulta.message.reply_text(
-            "🎉 Você chegou ao final das questões!"
-        )
-
-        return
+    await enviar_questao(consulta.message, context)
 
 
-    # ========================================================
-    # CRIA OS BOTÕES A, B, C E D
-    # ========================================================
+# ============================================================
+# VOLTAR AO MENU PRINCIPAL
+# ============================================================
+
+async def voltar_inicio(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
+    consulta = update.callback_query
+    await consulta.answer()
+
+    disciplinas = obter_lista_distinta("disciplina")
+    context.user_data["opcoes_disc"] = disciplinas
 
     botoes = [
-
         [
             InlineKeyboardButton(
-                "A",
-                callback_data=f"questao_{questao['id']}_A"
-            ),
-
-            InlineKeyboardButton(
-                "B",
-                callback_data=f"questao_{questao['id']}_B"
-            )
-        ],
-
-        [
-            InlineKeyboardButton(
-                "C",
-                callback_data=f"questao_{questao['id']}_C"
-            ),
-
-            InlineKeyboardButton(
-                "D",
-                callback_data=f"questao_{questao['id']}_D"
+                disciplina,
+                callback_data=f"disc:{i}"
             )
         ]
-
+        for i, disciplina in enumerate(disciplinas)
     ]
 
-
-    teclado = InlineKeyboardMarkup(botoes)
-
-
-    # --------------------------------------------------------
-    # Monta o texto da próxima questão
-    # --------------------------------------------------------
-
-    texto = f"""
-{questao["pergunta"]}
-
-🅰️ {questao["alternativas"]["A"]}
-
-🅱️ {questao["alternativas"]["B"]}
-
-©️ {questao["alternativas"]["C"]}
-
-🅳️ {questao["alternativas"]["D"]}
-
-👇 Escolha uma alternativa:
-"""
-
-
-    # --------------------------------------------------------
-    # Envia a próxima questão
-    # --------------------------------------------------------
-
     await consulta.message.reply_text(
-        texto,
-        reply_markup=teclado
+        "📚 QUESTÕES CONCURSO\n\n"
+        "Escolha uma disciplina:",
+        reply_markup=InlineKeyboardMarkup(botoes)
     )
 
 
 # ============================================================
-# FUNÇÃO PRINCIPAL
+# INICIAR APLICAÇÃO
 # ============================================================
 
 def main():
-
     app = Application.builder().token(TOKEN).build()
 
-
-    # ========================================================
-    # COMANDO /START
-    # ========================================================
+    app.add_handler(CommandHandler("start", iniciar))
 
     app.add_handler(
-    CommandHandler(
-        "start",
-        menu
+        CallbackQueryHandler(
+            selecionar_disciplina,
+            pattern=r"^disc:\d+$"
+        )
     )
-)
 
     app.add_handler(
-    CallbackQueryHandler(
-        menu_dataprev,
-        pattern="^menu_dataprev$"
+        CallbackQueryHandler(
+            selecionar_topico,
+            pattern=r"^top:\d+$"
+        )
     )
-)
 
-
-    # ========================================================
-    # CLIQUES NAS ALTERNATIVAS A/B/C/D
-    #
-    # Só será chamado quando o callback começar com:
-    #
-    # questao_
-    #
-    # Exemplo:
-    #
-    # questao_1_A
-    # ========================================================
+    app.add_handler(
+        CallbackQueryHandler(
+            selecionar_assunto,
+            pattern=r"^ass:\d+$"
+        )
+    )
 
     app.add_handler(
         CallbackQueryHandler(
             resposta,
-            pattern="^questao_"
+            pattern=r"^resp:[A-E]$"
         )
     )
-
-
-    # ========================================================
-    # BOTÃO PRÓXIMA QUESTÃO
-    #
-    # Só será chamado quando o callback começar com:
-    #
-    # proxima_
-    #
-    # Exemplo:
-    #
-    # proxima_1
-    # ========================================================
 
     app.add_handler(
         CallbackQueryHandler(
             proxima_questao,
-            pattern="^proxima_"
+            pattern=r"^prox$"
         )
     )
 
+    app.add_handler(
+        CallbackQueryHandler(
+            voltar_inicio,
+            pattern=r"^inicio$"
+        )
+    )
 
-    # ========================================================
-    # INICIA O BOT
-    # ========================================================
-
-    print("🤖 Bot iniciado!")
-
-
-    # Mantém o bot funcionando
+    print("🤖 Bot iniciado e conectado ao MongoDB!")
     app.run_polling()
 
-
-# ============================================================
-# EXECUÇÃO
-# ============================================================
 
 if __name__ == "__main__":
     main()
