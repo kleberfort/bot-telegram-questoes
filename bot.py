@@ -1,7 +1,3 @@
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-import os
-
 
 from telegram.ext import (
     Application,
@@ -10,11 +6,17 @@ from telegram.ext import (
 )
 
 from config import TOKEN
+from database import testar_conexao
 import menus
 import questoes
 
 
 def main():
+    # Testa a conexão com o MongoDB
+    if not testar_conexao():
+        raise SystemExit("Não foi possível conectar ao MongoDB.")
+
+    # Cria a aplicação do Telegram
     app = Application.builder().token(TOKEN).build()
 
     # Comando inicial
