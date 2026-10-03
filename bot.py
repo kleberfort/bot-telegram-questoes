@@ -56,6 +56,13 @@ def main():
         )
     )
 
+    app.add_handler(
+    CallbackQueryHandler(
+        menus.selecionar_bloco,
+        pattern="^bloco:"
+    )
+    )
+
     # Respostas e navegação das questões
     app.add_handler(
         CallbackQueryHandler(
@@ -70,6 +77,8 @@ def main():
             pattern="^proxima$"
         )
     )
+
+
 
     print("Bot iniciado com sucesso!")
 

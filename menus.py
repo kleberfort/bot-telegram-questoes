@@ -1,4 +1,5 @@
 
+from opentelemetry import context
 from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -54,6 +55,9 @@ async def iniciar(update, context):
     context.user_data.pop("assunto", None)
     context.user_data.pop("disciplina", None)
     context.user_data.pop("topico", None)
+    context.user_data.pop("todas_questoes", None)
+    context.user_data.pop("inicio_bloco", None)
+    context.user_data.pop("total_questoes_assunto", None)
 
     disciplinas = repositorio.listar_disciplinas()
 
@@ -146,6 +150,7 @@ async def selecionar_topico(
     )
 
 
+
 async def selecionar_assunto(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
@@ -163,7 +168,6 @@ async def selecionar_assunto(
         return
 
     assunto = assuntos[indice]
-
     disciplina = context.user_data["disciplina"]
     topico = context.user_data["topico"]
 
@@ -179,23 +183,95 @@ async def selecionar_assunto(
         )
         return
 
-    # Registra o conteúdo escolhido
+    # Guarda todas as questões encontradas
+    context.user_data["todas_questoes"] = questoes_encontradas
     context.user_data["assunto"] = assunto
 
-    # Inicializa o questionário
-    context.user_data["questoes"] = questoes_encontradas
+    total = len(questoes_encontradas)
+    tamanho_bloco = 10
+    quantidade_blocos = (total + tamanho_bloco - 1) // tamanho_bloco
+
+    botoes = []
+
+    for bloco in range(1, quantidade_blocos + 1):
+        inicio = (bloco - 1) * tamanho_bloco + 1
+        fim = min(bloco * tamanho_bloco, total)
+
+        botoes.append([
+            InlineKeyboardButton(
+                f"Bloco {bloco} — Questões {inicio} a {fim}",
+                callback_data=f"bloco:{bloco}"
+            )
+        ])
+
+    botoes.append([
+        InlineKeyboardButton(
+            "⬅️ Voltar ao início",
+            callback_data="inicio"
+        )
+    ])
+
+    await consulta.message.reply_text(
+        f"📚 {assunto}\n\n"
+        f"📝 Total de questões: {total}\n\n"
+        "Escolha o bloco que deseja resolver:",
+        reply_markup=InlineKeyboardMarkup(botoes)
+    )
+
+
+
+async def selecionar_bloco(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
+    consulta = update.callback_query
+    await consulta.answer()
+
+    bloco = int(consulta.data.split(":")[1])
+
+    todas_questoes = context.user_data.get(
+        "todas_questoes", []
+    )
+
+    if not todas_questoes:
+        await consulta.message.reply_text(
+            "Questões não encontradas. Digite /start."
+        )
+        return
+
+    tamanho_bloco = 10
+    inicio = (bloco - 1) * tamanho_bloco
+    fim = inicio + tamanho_bloco
+
+    questoes_bloco = todas_questoes[inicio:fim]
+
+    if not questoes_bloco:
+        await consulta.message.reply_text(
+            "Bloco não encontrado."
+        )
+        return
+
+    # Prepara o questionário selecionado
+    context.user_data["questoes"] = questoes_bloco
     context.user_data["indice_questao"] = 0
+    context.user_data["inicio_bloco"] = inicio
+    context.user_data["total_questoes_assunto"] = len(
+        todas_questoes
+    )
     context.user_data["respondida"] = False
 
-    # Zera o desempenho do novo questionário
     questoes.iniciar_desempenho(context)
 
-    # Exibe a primeira questão
+    await consulta.message.reply_text(
+        f"📖 Iniciando o bloco {bloco} "
+        f"(questões {inicio + 1} a "
+        f"{min(fim, len(todas_questoes))})"
+    )
+
     await questoes.exibir_questao(
         consulta.message,
         context
     )
-
 
 async def voltar_inicio(update, context):
     consulta = update.callback_query
@@ -209,6 +285,9 @@ async def voltar_inicio(update, context):
     context.user_data.pop("assunto", None)
     context.user_data.pop("disciplina", None)
     context.user_data.pop("topico", None)
+    context.user_data.pop("todas_questoes", None)
+    context.user_data.pop("inicio_bloco", None)
+    context.user_data.pop("total_questoes_assunto", None)
 
     disciplinas = repositorio.listar_disciplinas()
 

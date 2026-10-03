@@ -1,9 +1,27 @@
 
+from opentelemetry import context
 from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup
 )
 
+
+def resumir_enunciado(enunciado, limite=400):
+    """
+    Retorna apenas o início do enunciado,
+    evitando exibir o texto completo.
+    """
+    if not enunciado:
+        return ""
+
+    # Mantém somente o primeiro parágrafo
+    resumo = enunciado.strip().split("\n\n")[0].strip()
+
+    # Evita resumos muito longos
+    if len(resumo) > limite:
+        resumo = resumo[:limite].rsplit(" ", 1)[0] + "..."
+
+    return resumo
 
 def iniciar_desempenho(context):
     """Reinicia os dados de desempenho de um novo questionário."""
@@ -71,10 +89,18 @@ async def exibir_questao(mensagem, context):
     questao = questoes[indice]
     alternativas = questao.get("alternativas", {})
 
+    total_questoes = context.user_data.get(
+    "total_questoes_assunto", len(questoes)
+    )
+
+    inicio_bloco = context.user_data.get("inicio_bloco", 0)
+
+    numero_atual = inicio_bloco + indice + 1
+
     texto = (
-        f"📚 {questao.get('assunto', '')}\n\n"
-        f"🧠 {indice + 1}ª questão\n\n"
-        f"{questao.get('enunciado', '')}\n\n"
+    f"📚 {questao.get('assunto', '')}\n\n"
+    f"🧠 Questão {numero_atual} de {total_questoes}\n\n"
+    f"{questao.get('enunciado', '')}\n\n"
     )
 
     botoes = []
@@ -143,12 +169,17 @@ async def responder(update, context):
         desempenho["erros"] += 1
 
         desempenho["questoes_erradas"].append({
-            "numero": indice + 1,
-            "assunto": questao.get("assunto", ""),
-            "enunciado": questao.get("enunciado", ""),
-            "marcada": alternativa,
-            "gabarito": gabarito
-        })
+        "numero": (
+        context.user_data.get("inicio_bloco", 0)
+        + indice + 1
+    ),
+        "assunto": questao.get("assunto", ""),
+        "enunciado": resumir_enunciado(
+        questao.get("enunciado", "")
+    ),
+        "marcada": alternativa,
+        "gabarito": gabarito
+    })
 
     texto = (
         f"{resultado}\n\n"
