@@ -5,6 +5,8 @@ from telegram import (
     InlineKeyboardMarkup
 )
 
+import time
+
 
 def resumir_enunciado(enunciado, limite=400):
     """
@@ -40,6 +42,22 @@ async def exibir_questao(mensagem, context):
     if indice >= len(questoes):
         desempenho = context.user_data.get("desempenho", {})
 
+        # Calcula o tempo total do bloco
+    inicio_bloco = context.user_data.get("inicio_tempo_bloco")
+
+    if inicio_bloco is not None:
+        tempo_total = time.monotonic() - inicio_bloco
+    else:
+        tempo_total = 0
+
+    minutos = int(tempo_total // 60)
+    segundos = int(tempo_total % 60)
+
+    if minutos > 0:
+        tempo_bloco = f"{minutos} min e {segundos} s"
+    else:
+        tempo_bloco = f"{segundos} s"
+
         total = desempenho.get("total", 0)
         acertos = desempenho.get("acertos", 0)
         erros = desempenho.get("erros", 0)
@@ -47,13 +65,14 @@ async def exibir_questao(mensagem, context):
         porcentagem = (acertos / total * 100) if total > 0 else 0
 
         texto = (
-            "🎉 QUESTIONÁRIO FINALIZADO!\n\n"
-            f"📚 Conteúdo: {context.user_data.get('assunto', 'Geral')}\n\n"
-            f"📝 Questões respondidas: {total}\n"
-            f"✅ Acertos: {acertos}\n"
-            f"❌ Erros: {erros}\n"
-            f"🎯 Aproveitamento: {porcentagem:.2f}%\n"
-        )
+        "🎉 QUESTIONÁRIO FINALIZADO!\n\n"
+        f"📚 Conteúdo: {context.user_data.get('assunto', 'Geral')}\n\n"
+        f"📝 Questões respondidas: {total}\n"
+        f"✅ Acertos: {acertos}\n"
+        f"❌ Erros: {erros}\n"
+        f"🎯 Aproveitamento: {porcentagem:.2f}%\n\n"
+        f"⏱️ Tempo total do bloco: {tempo_bloco}\n"
+)
 
         # Envia o resumo separadamente
         await mensagem.reply_text(texto)

@@ -9,6 +9,7 @@ from telegram.ext import ContextTypes
 
 import repositorio
 import questoes
+import time
 
 
 def montar_teclado(opcoes, prefixo):
@@ -259,6 +260,8 @@ async def selecionar_bloco(
         todas_questoes
     )
     context.user_data["respondida"] = False
+    # Registra o início do tempo do bloco
+    context.user_data["inicio_tempo_bloco"] = time.monotonic()
 
     questoes.iniciar_desempenho(context)
 
