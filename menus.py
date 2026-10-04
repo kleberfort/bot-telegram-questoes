@@ -1,4 +1,3 @@
-
 from opentelemetry import context
 from telegram import (
     InlineKeyboardButton,
@@ -187,6 +186,9 @@ async def selecionar_assunto(
     # Guarda todas as questões encontradas
     context.user_data["todas_questoes"] = questoes_encontradas
     context.user_data["assunto"] = assunto
+
+    print("Questões encontradas:", len(questoes_encontradas))
+    print("Questões armazenadas:", len(context.user_data["todas_questoes"]))
 
     total = len(questoes_encontradas)
     tamanho_bloco = 10
