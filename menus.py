@@ -221,8 +221,6 @@ async def selecionar_assunto(
         reply_markup=InlineKeyboardMarkup(botoes)
     )
 
-
-
 async def selecionar_bloco(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
