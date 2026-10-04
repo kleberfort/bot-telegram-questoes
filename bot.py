@@ -77,7 +77,6 @@ def main():
     )
 
 
-
     print("Bot iniciado com sucesso!")
 
     app.run_polling()
