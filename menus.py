@@ -236,6 +236,9 @@ async def selecionar_bloco(
         "todas_questoes", []
     )
 
+    print("Questões recuperadas:", len(todas_questoes))
+    print("Dados da sessão:", list(context.user_data.keys()))
+
     if not todas_questoes:
         await consulta.message.reply_text(
             "Questões não encontradas. Digite /start."
