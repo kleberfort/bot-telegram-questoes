@@ -35,28 +35,30 @@ def iniciar_desempenho(context):
     }
 
 
+
 async def exibir_questao(mensagem, context):
     questoes = context.user_data.get("questoes", [])
     indice = context.user_data.get("indice_questao", 0)
 
+    # Verifica se o bloco foi finalizado
     if indice >= len(questoes):
         desempenho = context.user_data.get("desempenho", {})
 
         # Calcula o tempo total do bloco
-    inicio_bloco = context.user_data.get("inicio_tempo_bloco")
+        inicio_bloco = context.user_data.get("inicio_tempo_bloco")
 
-    if inicio_bloco is not None:
-        tempo_total = time.monotonic() - inicio_bloco
-    else:
-        tempo_total = 0
+        if inicio_bloco is not None:
+            tempo_total = time.monotonic() - inicio_bloco
+        else:
+            tempo_total = 0
 
-    minutos = int(tempo_total // 60)
-    segundos = int(tempo_total % 60)
+        minutos = int(tempo_total // 60)
+        segundos = int(tempo_total % 60)
 
-    if minutos > 0:
-        tempo_bloco = f"{minutos} min e {segundos} s"
-    else:
-        tempo_bloco = f"{segundos} s"
+        if minutos > 0:
+            tempo_bloco = f"{minutos} min e {segundos} s"
+        else:
+            tempo_bloco = f"{segundos} s"
 
         total = desempenho.get("total", 0)
         acertos = desempenho.get("acertos", 0)
@@ -65,16 +67,15 @@ async def exibir_questao(mensagem, context):
         porcentagem = (acertos / total * 100) if total > 0 else 0
 
         texto = (
-        "🎉 QUESTIONÁRIO FINALIZADO!\n\n"
-        f"📚 Conteúdo: {context.user_data.get('assunto', 'Geral')}\n\n"
-        f"📝 Questões respondidas: {total}\n"
-        f"✅ Acertos: {acertos}\n"
-        f"❌ Erros: {erros}\n"
-        f"🎯 Aproveitamento: {porcentagem:.2f}%\n\n"
-        f"⏱️ Tempo total do bloco: {tempo_bloco}\n"
-)
+            "🎉 QUESTIONÁRIO FINALIZADO!\n\n"
+            f"📚 Conteúdo: {context.user_data.get('assunto', 'Geral')}\n\n"
+            f"📝 Questões respondidas: {total}\n"
+            f"✅ Acertos: {acertos}\n"
+            f"❌ Erros: {erros}\n"
+            f"🎯 Aproveitamento: {porcentagem:.2f}%\n\n"
+            f"⏱️ Tempo total do bloco: {tempo_bloco}\n"
+        )
 
-        # Envia o resumo separadamente
         await mensagem.reply_text(texto)
 
         questoes_erradas = desempenho.get("questoes_erradas", [])
@@ -92,7 +93,6 @@ async def exibir_questao(mensagem, context):
                     f"Gabarito: {item['gabarito']}"
                 )
 
-                # Divide textos muito grandes em blocos
                 limite = 3500
 
                 for inicio in range(0, len(texto_erro), limite):
@@ -105,21 +105,21 @@ async def exibir_questao(mensagem, context):
 
         return
 
+    # Exibe a questão atual
     questao = questoes[indice]
     alternativas = questao.get("alternativas", {})
 
     total_questoes = context.user_data.get(
-    "total_questoes_assunto", len(questoes)
+        "total_questoes_assunto", len(questoes)
     )
 
     inicio_bloco = context.user_data.get("inicio_bloco", 0)
-
     numero_atual = inicio_bloco + indice + 1
 
     texto = (
-    f"📚 {questao.get('assunto', '')}\n\n"
-    f"🧠 Questão {numero_atual} de {total_questoes}\n\n"
-    f"{questao.get('enunciado', '')}\n\n"
+        f"📚 {questao.get('assunto', '')}\n\n"
+        f"🧠 Questão {numero_atual} de {total_questoes}\n\n"
+        f"{questao.get('enunciado', '')}\n\n"
     )
 
     botoes = []
@@ -135,11 +135,13 @@ async def exibir_questao(mensagem, context):
 
     texto += "\n👇 Escolha uma alternativa:"
 
+    # Registra o início do tempo da questão
+    context.user_data["inicio_tempo"] = time.monotonic()
+
     await mensagem.reply_text(
         texto,
         reply_markup=InlineKeyboardMarkup(botoes)
     )
-
 
 async def responder(update, context):
     consulta = update.callback_query
