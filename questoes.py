@@ -57,14 +57,10 @@ async def exibir_questao(mensagem, context):
 
         # Envia o resumo separadamente
         await mensagem.reply_text(texto)
-
         questoes_erradas = desempenho.get("questoes_erradas", [])
 
         if questoes_erradas:
-            await mensagem.reply_text(
-                "❌ QUESTÕES QUE VOCÊ ERROU:"
-            )
-
+            await mensagem.reply_text("❌ QUESTÕES QUE VOCÊ ERROU:")
             for item in questoes_erradas:
                 texto_erro = (
                     f"Questão {item['numero']}\n\n"
@@ -80,21 +76,15 @@ async def exibir_questao(mensagem, context):
                     parte = texto_erro[inicio:inicio + limite]
                     await mensagem.reply_text(parte)
         else:
-            await mensagem.reply_text(
-                "🏆 Parabéns! Você não errou nenhuma questão."
-            )
+            await mensagem.reply_text("🏆 Parabéns! Você não errou nenhuma questão.")
 
         return
 
     questao = questoes[indice]
     alternativas = questao.get("alternativas", {})
 
-    total_questoes = context.user_data.get(
-    "total_questoes_assunto", len(questoes)
-    )
-
+    total_questoes = context.user_data.get("total_questoes_assunto", len(questoes))
     inicio_bloco = context.user_data.get("inicio_bloco", 0)
-
     numero_atual = inicio_bloco + indice + 1
 
     texto = (
@@ -107,29 +97,17 @@ async def exibir_questao(mensagem, context):
 
     for letra, alternativa in alternativas.items():
         texto += f"{letra}) {alternativa}\n\n"
-        botoes.append([
-            InlineKeyboardButton(
-                letra,
-                callback_data=f"responder:{letra}"
-            )
-        ])
-
+        botoes.append([InlineKeyboardButton(letra,callback_data=f"responder:{letra}")])
     texto += "\n👇 Escolha uma alternativa:"
 
-    await mensagem.reply_text(
-        texto,
-        reply_markup=InlineKeyboardMarkup(botoes)
-    )
+    await mensagem.reply_text(texto,reply_markup=InlineKeyboardMarkup(botoes))
 
 
 async def responder(update, context):
     consulta = update.callback_query
 
     if context.user_data.get("respondida"):
-        await consulta.answer(
-            "Você já respondeu esta questão.",
-            show_alert=True
-        )
+        await consulta.answer("Você já respondeu esta questão.",show_alert=True)
         return
 
     await consulta.answer()
@@ -142,9 +120,7 @@ async def responder(update, context):
     indice = context.user_data.get("indice_questao", 0)
 
     if indice >= len(questoes):
-        await consulta.message.reply_text(
-            "Questão não encontrada. Digite /start."
-        )
+        await consulta.message.reply_text("Questão não encontrada. Digite /start.")
         return
 
     questao = questoes[indice]
@@ -168,15 +144,9 @@ async def responder(update, context):
         resultado = "❌ INCORRETO!"
         desempenho["erros"] += 1
 
-        desempenho["questoes_erradas"].append({
-        "numero": (
-        context.user_data.get("inicio_bloco", 0)
-        + indice + 1
-    ),
+        desempenho["questoes_erradas"].append({"numero": (context.user_data.get("inicio_bloco", 0)+ indice + 1),
         "assunto": questao.get("assunto", ""),
-        "enunciado": resumir_enunciado(
-        questao.get("enunciado", "")
-    ),
+        "enunciado": resumir_enunciado(questao.get("enunciado", "")),
         "marcada": alternativa,
         "gabarito": gabarito
     })
@@ -188,25 +158,10 @@ async def responder(update, context):
         f"📖 COMENTÁRIO\n\n{comentario}"
     )
 
-    botoes = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton(
-                "➡️ Próxima questão",
-                callback_data="proxima"
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                "🏠 Voltar ao início",
-                callback_data="inicio"
-            )
-        ]
-    ])
+    botoes = InlineKeyboardMarkup([[InlineKeyboardButton("➡️ Próxima questão",callback_data="proxima")],
+                                   [InlineKeyboardButton("🏠 Voltar ao início",callback_data="inicio")]])
 
-    await consulta.message.reply_text(
-        texto,
-        reply_markup=botoes
-    )
+    await consulta.message.reply_text(texto,reply_markup=botoes)
 
 async def proxima(update, context):
     consulta = update.callback_query
@@ -217,10 +172,7 @@ async def proxima(update, context):
 
     # Só exige resposta se ainda houver uma questão para responder
     if indice < len(questoes) and not respondida:
-        await consulta.answer(
-            "Responda à questão antes de avançar.",
-            show_alert=True
-        )
+        await consulta.answer("Responda à questão antes de avançar.",show_alert=True)
         return
 
     await consulta.answer()

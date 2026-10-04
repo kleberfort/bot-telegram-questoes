@@ -1,14 +1,9 @@
 from opentelemetry import context
-from telegram import (
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-    Update
-)
+from telegram import (InlineKeyboardButton,InlineKeyboardMarkup,Update)
 from telegram.ext import ContextTypes
 
 import repositorio
 import questoes
-
 
 def montar_teclado(opcoes, prefixo):
     botoes = []
@@ -16,34 +11,14 @@ def montar_teclado(opcoes, prefixo):
     # Coloca 2 opções por linha
     for i in range(0, len(opcoes), 2):
         linha = []
-
-        linha.append(
-            InlineKeyboardButton(
-                opcoes[i],
-                callback_data=f"{prefixo}:{i}"
-            )
-        )
-
+        linha.append(InlineKeyboardButton(opcoes[i],callback_data=f"{prefixo}:{i}"))
         if i + 1 < len(opcoes):
-            linha.append(
-                InlineKeyboardButton(
-                    opcoes[i + 1],
-                    callback_data=f"{prefixo}:{i + 1}"
-                )
-            )
-
-        botoes.append(linha)
+            linha.append(InlineKeyboardButton(opcoes[i + 1],callback_data=f"{prefixo}:{i + 1}"))
+            botoes.append(linha)
 
     # Botão voltar
-    botoes.append([
-        InlineKeyboardButton(
-            "⬅️ Voltar ao início",
-            callback_data="inicio"
-        )
-    ])
-
+    botoes.append([InlineKeyboardButton("⬅️ Voltar ao início",callback_data="inicio")])
     return InlineKeyboardMarkup(botoes)
-
 
 async def iniciar(update, context):
     # Limpa os dados do questionário anterior
@@ -61,23 +36,14 @@ async def iniciar(update, context):
     disciplinas = repositorio.listar_disciplinas()
 
     if not disciplinas:
-        await update.message.reply_text(
-            "Nenhuma disciplina foi cadastrada."
-        )
+        await update.message.reply_text("Nenhuma disciplina foi cadastrada.")
         return
 
     context.user_data["opcoes"] = disciplinas
-
-    await update.message.reply_text(
-        "📚 Escolha a área ou disciplina:",
-        reply_markup=montar_teclado(disciplinas, "disciplina")
-    )
+    await update.message.reply_text("📚 Escolha a área ou disciplina:",reply_markup=montar_teclado(disciplinas, "disciplina"))
 
 
-async def selecionar_disciplina(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+async def selecionar_disciplina(update: Update,context: ContextTypes.DEFAULT_TYPE):
     consulta = update.callback_query
     await consulta.answer()
 
@@ -85,9 +51,7 @@ async def selecionar_disciplina(
     disciplinas = context.user_data.get("opcoes", [])
 
     if indice < 0 or indice >= len(disciplinas):
-        await consulta.message.reply_text(
-            "Opção inválida. Digite /start."
-        )
+        await consulta.message.reply_text("Opção inválida. Digite /start.")
         return
 
     disciplina = disciplinas[indice]
@@ -96,23 +60,15 @@ async def selecionar_disciplina(
     topicos = repositorio.listar_topicos(disciplina)
 
     if not topicos:
-        await consulta.message.reply_text(
-            "Não há disciplinas ou tópicos cadastrados nessa área."
-        )
+        await consulta.message.reply_text("Não há disciplinas ou tópicos cadastrados nessa área.")
         return
 
     context.user_data["opcoes"] = topicos
 
-    await consulta.message.reply_text(
-        f"📚 {disciplina}\n\nEscolha uma disciplina ou tópico:",
-        reply_markup=montar_teclado(topicos, "topico")
-    )
+    await consulta.message.reply_text(f"📚 {disciplina}\n\nEscolha uma disciplina ou tópico:",reply_markup=montar_teclado(topicos, "topico"))
 
 
-async def selecionar_topico(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+async def selecionar_topico(update: Update,context: ContextTypes.DEFAULT_TYPE):
     consulta = update.callback_query
     await consulta.answer()
 
@@ -120,40 +76,22 @@ async def selecionar_topico(
     topicos = context.user_data.get("opcoes", [])
 
     if indice < 0 or indice >= len(topicos):
-        await consulta.message.reply_text(
-            "Opção inválida. Digite /start."
-        )
+        await consulta.message.reply_text("Opção inválida. Digite /start.")
         return
 
     topico = topicos[indice]
     disciplina = context.user_data["disciplina"]
-
     context.user_data["topico"] = topico
-
-    assuntos = repositorio.listar_assuntos(
-        disciplina,
-        topico
-    )
+    assuntos = repositorio.listar_assuntos(disciplina,topico)
 
     if not assuntos:
-        await consulta.message.reply_text(
-            "Nenhum assunto cadastrado."
-        )
+        await consulta.message.reply_text("Nenhum assunto cadastrado.")
         return
-
     context.user_data["opcoes"] = assuntos
 
-    await consulta.message.reply_text(
-        f"📘 {topico}\n\nEscolha o assunto:",
-        reply_markup=montar_teclado(assuntos, "assunto")
-    )
+    await consulta.message.reply_text(f"📘 {topico}\n\nEscolha o assunto:",reply_markup=montar_teclado(assuntos, "assunto"))
 
-
-
-async def selecionar_assunto(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+async def selecionar_assunto(update: Update,context: ContextTypes.DEFAULT_TYPE):
     consulta = update.callback_query
     await consulta.answer()
 
@@ -161,25 +99,17 @@ async def selecionar_assunto(
     assuntos = context.user_data.get("opcoes", [])
 
     if indice < 0 or indice >= len(assuntos):
-        await consulta.message.reply_text(
-            "Opção inválida. Digite /start."
-        )
+        await consulta.message.reply_text("Opção inválida. Digite /start.")
         return
 
     assunto = assuntos[indice]
     disciplina = context.user_data["disciplina"]
     topico = context.user_data["topico"]
 
-    questoes_encontradas = repositorio.listar_questoes(
-        disciplina,
-        topico,
-        assunto
-    )
+    questoes_encontradas = repositorio.listar_questoes(disciplina,topico,assunto)
 
     if not questoes_encontradas:
-        await consulta.message.reply_text(
-            "Não existem questões cadastradas para esse assunto."
-        )
+        await consulta.message.reply_text("Não existem questões cadastradas para esse assunto.")
         return
 
     # Guarda todas as questões encontradas
@@ -196,19 +126,9 @@ async def selecionar_assunto(
         inicio = (bloco - 1) * tamanho_bloco + 1
         fim = min(bloco * tamanho_bloco, total)
 
-        botoes.append([
-            InlineKeyboardButton(
-                f"Bloco {bloco} — Questões {inicio} a {fim}",
-                callback_data=f"bloco:{bloco}"
-            )
-        ])
+        botoes.append([InlineKeyboardButton(f"Bloco {bloco} — Questões {inicio} a {fim}",callback_data=f"bloco:{bloco}")])
 
-    botoes.append([
-        InlineKeyboardButton(
-            "⬅️ Voltar ao início",
-            callback_data="inicio"
-        )
-    ])
+    botoes.append([InlineKeyboardButton("⬅️ Voltar ao início",callback_data="inicio")])
 
     await consulta.message.reply_text(
         f"📚 {assunto}\n\n"
@@ -217,25 +137,16 @@ async def selecionar_assunto(
         reply_markup=InlineKeyboardMarkup(botoes)
     )
 
-
-
-async def selecionar_bloco(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+async def selecionar_bloco(update: Update,context: ContextTypes.DEFAULT_TYPE):
     consulta = update.callback_query
     await consulta.answer()
 
     bloco = int(consulta.data.split(":")[1])
 
-    todas_questoes = context.user_data.get(
-        "todas_questoes", []
-    )
+    todas_questoes = context.user_data.get("todas_questoes", [])
 
     if not todas_questoes:
-        await consulta.message.reply_text(
-            "Questões não encontradas. Digite /start."
-        )
+        await consulta.message.reply_text("Questões não encontradas. Digite /start.")
         return
 
     tamanho_bloco = 10
@@ -245,18 +156,14 @@ async def selecionar_bloco(
     questoes_bloco = todas_questoes[inicio:fim]
 
     if not questoes_bloco:
-        await consulta.message.reply_text(
-            "Bloco não encontrado."
-        )
+        await consulta.message.reply_text("Bloco não encontrado.")
         return
 
     # Prepara o questionário selecionado
     context.user_data["questoes"] = questoes_bloco
     context.user_data["indice_questao"] = 0
     context.user_data["inicio_bloco"] = inicio
-    context.user_data["total_questoes_assunto"] = len(
-        todas_questoes
-    )
+    context.user_data["total_questoes_assunto"] = len(todas_questoes)
     context.user_data["respondida"] = False
 
     questoes.iniciar_desempenho(context)
@@ -267,10 +174,7 @@ async def selecionar_bloco(
         f"{min(fim, len(todas_questoes))})"
     )
 
-    await questoes.exibir_questao(
-        consulta.message,
-        context
-    )
+    await questoes.exibir_questao(consulta.message,context)
 
 async def voltar_inicio(update, context):
     consulta = update.callback_query
@@ -291,9 +195,7 @@ async def voltar_inicio(update, context):
     disciplinas = repositorio.listar_disciplinas()
 
     if not disciplinas:
-        await consulta.message.reply_text(
-            "Nenhuma disciplina foi cadastrada."
-        )
+        await consulta.message.reply_text("Nenhuma disciplina foi cadastrada.")
         return
 
     context.user_data["opcoes"] = disciplinas

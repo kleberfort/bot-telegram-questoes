@@ -4,12 +4,7 @@ from config import MONGODB_URI
 if not MONGODB_URI:
     raise ValueError("MONGODB_URI não foi configurada.")
 
-cliente = MongoClient(
-    MONGODB_URI,
-    serverSelectionTimeoutMS=30000,
-    connectTimeoutMS=20000
-)
-
+cliente = MongoClient(MONGODB_URI,serverSelectionTimeoutMS=30000,connectTimeoutMS=20000)
 banco = cliente["questoes_concurso"]
 colecao = banco["questoes"]
 
