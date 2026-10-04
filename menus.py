@@ -8,7 +8,6 @@ from telegram.ext import ContextTypes
 
 import repositorio
 import questoes
-import time
 
 
 def montar_teclado(opcoes, prefixo):
@@ -187,9 +186,6 @@ async def selecionar_assunto(
     context.user_data["todas_questoes"] = questoes_encontradas
     context.user_data["assunto"] = assunto
 
-    print("Questões encontradas:", len(questoes_encontradas))
-    print("Questões armazenadas:", len(context.user_data["todas_questoes"]))
-
     total = len(questoes_encontradas)
     tamanho_bloco = 10
     quantidade_blocos = (total + tamanho_bloco - 1) // tamanho_bloco
@@ -221,6 +217,8 @@ async def selecionar_assunto(
         reply_markup=InlineKeyboardMarkup(botoes)
     )
 
+
+
 async def selecionar_bloco(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
@@ -233,9 +231,6 @@ async def selecionar_bloco(
     todas_questoes = context.user_data.get(
         "todas_questoes", []
     )
-
-    print("Questões recuperadas:", len(todas_questoes))
-    print("Dados da sessão:", list(context.user_data.keys()))
 
     if not todas_questoes:
         await consulta.message.reply_text(
@@ -263,8 +258,6 @@ async def selecionar_bloco(
         todas_questoes
     )
     context.user_data["respondida"] = False
-    # Registra o início do tempo do bloco
-    context.user_data["inicio_tempo_bloco"] = time.monotonic()
 
     questoes.iniciar_desempenho(context)
 
