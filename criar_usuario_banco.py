@@ -36,7 +36,7 @@ def gerar_usuario_teste():
     # ============================================================
     # ALTERE APENAS O NOME DO ALUNO ABAIXO MANUALMENTE
     # ============================================================
-    nome_teste = "cavalcante"
+    nome_teste = "kelfrank"
 
     # Gera o login (15 car.) e a senha (10 car.) seguindo as suas regras
     login_teste, senha_teste = gerar_credenciais_seguras(nome_teste)
