@@ -1,8 +1,12 @@
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+
 from telegram.ext import ContextTypes, ConversationHandler
 
+
 import repositorio
+
 import questoes
+
 import usuarios
 
 
@@ -18,6 +22,7 @@ SOLICITAR_LOGIN, SOLICITAR_SENHA = range(2)
 # ============================================================
 
 def montar_teclado(opcoes, prefixo):
+
     botoes = []
 
     # 2 opções por linha
@@ -31,6 +36,7 @@ def montar_teclado(opcoes, prefixo):
         ]
 
         if i + 1 < len(opcoes):
+
             linha.append(
                 InlineKeyboardButton(
                     opcoes[i + 1],
@@ -57,10 +63,58 @@ def montar_teclado(opcoes, prefixo):
 
 async def iniciar(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    user_id = update.message.from_user.id
+    # ========================================================
+    # IDENTIFICA O TIPO DE CHAT
+    # ========================================================
+
+    chat_type = update.effective_chat.type
+
+    # ========================================================
+    # SE O /START FOI DIGITADO NO GRUPO
+    # ========================================================
+
+    if chat_type in ["group", "supergroup"]:
+
+        # Nome de usuário do bot
+        username_bot = context.bot.username
+
+        # Link para abrir o bot no privado
+        link_privado = f"https://t.me/{username_bot}?start=grupo"
+
+        teclado = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton(
+                    "🤖 Acessar bot no privado",
+                    url=link_privado
+                )
+            ]
+        ])
+
+        await update.message.reply_text(
+            "🔐 <b>QG Concurso</b>\n\n"
+            "Para utilizar o sistema de questões, "
+            "a interação com o bot deve ser feita "
+            "em uma conversa privada.\n\n"
+            "👇 Clique no botão abaixo para continuar:",
+            reply_markup=teclado,
+            parse_mode="HTML"
+        )
+
+        # Não continua o processo de login dentro do grupo
+        return ConversationHandler.END
+
+    # ========================================================
+    # A PARTIR DAQUI, A INTERAÇÃO É PRIVADA
+    # ========================================================
+
+    user_id = update.effective_user.id
 
     # Procura usuário pelo Telegram ID
     usuario_logado = usuarios.buscar_por_telegram(user_id)
+
+    # ========================================================
+    # USUÁRIO JÁ ESTÁ VINCULADO
+    # ========================================================
 
     if usuario_logado:
 
@@ -77,9 +131,11 @@ async def iniciar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         disciplinas = repositorio.listar_disciplinas(login_user)
 
         if not disciplinas:
+
             await update.message.reply_text(
                 "Nenhuma área foi cadastrada para este usuário."
             )
+
             return ConversationHandler.END
 
         context.user_data["opcoes"] = disciplinas
@@ -95,6 +151,10 @@ async def iniciar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         return ConversationHandler.END
+
+    # ========================================================
+    # USUÁRIO AINDA NÃO ESTÁ VINCULADO
+    # ========================================================
 
     else:
 
@@ -137,8 +197,10 @@ async def receber_senha(
 ):
 
     login = context.user_data.get("temp_login")
+
     senha = update.message.text.strip()
-    user_id = update.message.from_user.id
+
+    user_id = update.effective_user.id
 
     # Tenta autenticar
     usuario = usuarios.autenticar(login, senha)
@@ -221,6 +283,7 @@ def limpar_dados_sessao(context):
     ]
 
     for chave in chaves:
+
         context.user_data.pop(
             chave,
             None
