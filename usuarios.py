@@ -96,3 +96,22 @@ def buscar_por_telegram(telegram_id):
         "telegram_id": telegram_id,
         "ativo": True
     })
+
+# ============================================================
+# DESVINCULAR TELEGRAM DO USUÁRIO
+# ============================================================
+
+def desvincular_telegram(telegram_id):
+
+    resultado = colecao_usuarios.update_one(
+        {
+            "telegram_id": telegram_id
+        },
+        {
+            "$unset": {
+                "telegram_id": ""
+            }
+        }
+    )
+
+    return resultado.modified_count > 0

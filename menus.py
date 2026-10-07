@@ -168,6 +168,136 @@ async def iniciar(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ============================================================
+# /LOGIN
+# ============================================================
+
+async def iniciar_login(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
+
+    # ========================================================
+    # O LOGIN DEVE SER FEITO NO PRIVADO
+    # ========================================================
+
+    chat_type = update.effective_chat.type
+
+    if chat_type in ["group", "supergroup"]:
+
+        await update.message.reply_text(
+            "🔐 Para fazer login, abra uma conversa privada "
+            "com o bot e digite /login."
+        )
+
+        return ConversationHandler.END
+
+    # ========================================================
+    # IDENTIFICA O TELEGRAM
+    # ========================================================
+
+    user_id = update.effective_user.id
+
+    # ========================================================
+    # VERIFICA SE JÁ ESTÁ LOGADO
+    # ========================================================
+
+    usuario_logado = usuarios.buscar_por_telegram(user_id)
+
+    if usuario_logado:
+
+        await update.message.reply_text(
+            f"🔐 Você já está logado como "
+            f"{usuario_logado.get('nome', 'usuário')}.\n\n"
+            "Para sair da conta atual, digite /logout."
+        )
+
+        return ConversationHandler.END
+
+    # ========================================================
+    # LIMPA DADOS TEMPORÁRIOS DE LOGIN
+    # ========================================================
+
+    context.user_data.pop("temp_login", None)
+
+    await update.message.reply_text(
+        "🔐 Vamos fazer seu login.\n\n"
+        "Digite o seu login:"
+    )
+
+    return SOLICITAR_LOGIN
+
+# ============================================================
+# /LOGOUT
+# ============================================================
+
+async def logout(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
+
+    # ========================================================
+    # O LOGOUT DEVE SER FEITO NO PRIVADO
+    # ========================================================
+
+    chat_type = update.effective_chat.type
+
+    if chat_type in ["group", "supergroup"]:
+
+        await update.message.reply_text(
+            "🔐 O logout deve ser feito na conversa privada "
+            "com o bot."
+        )
+
+        return ConversationHandler.END
+
+    # ========================================================
+    # IDENTIFICA O TELEGRAM
+    # ========================================================
+
+    user_id = update.effective_user.id
+
+    # ========================================================
+    # VERIFICA SE EXISTE USUÁRIO LOGADO
+    # ========================================================
+
+    usuario = usuarios.buscar_por_telegram(user_id)
+
+    if usuario is None:
+
+        # Limpa qualquer informação local da sessão
+        context.user_data.clear()
+
+        await update.message.reply_text(
+            "ℹ️ Você não está conectado a nenhuma conta."
+        )
+
+        return ConversationHandler.END
+
+    # ========================================================
+    # REMOVE O VÍNCULO NO MONGODB
+    # ========================================================
+
+    usuarios.desvincular_telegram(user_id)
+
+    # ========================================================
+    # LIMPA TODA A SESSÃO DO TELEGRAM
+    # ========================================================
+
+    context.user_data.clear()
+
+    # ========================================================
+    # CONFIRMA O LOGOUT
+    # ========================================================
+
+    await update.message.reply_text(
+        f"👋 Até logo, {usuario.get('nome', 'usuário')}!\n\n"
+        "Você saiu da sua conta com sucesso.\n\n"
+        "Para entrar novamente, digite /login."
+    )
+
+    return ConversationHandler.END
+
+# ============================================================
 # RECEBER LOGIN
 # ============================================================
 
