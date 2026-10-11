@@ -1,4 +1,3 @@
-
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -19,42 +18,33 @@ def main():
 
     # Testa a conexão com o MongoDB
     if not testar_conexao():
-
         print("Não foi possível conectar ao banco de dados.")
-
         return
 
-    # Cria a aplicação do Telegram
-    app = Application.builder().token(TOKEN).build()
+    # Cria a aplicação com processamento sequencial
+    app = (
+        Application.builder()
+        .token(TOKEN)
+        .concurrent_updates(False)
+        .build()
+    )
 
     # ============================================================
     # GERENCIADOR DO FLUXO DE LOGIN
     # ============================================================
 
     login_handler = ConversationHandler(
-
-        # ========================================================
-        # COMANDOS QUE INICIAM O FLUXO
-        # ========================================================
-
         entry_points=[
             CommandHandler("start", menus.iniciar),
             CommandHandler("login", menus.iniciar_login),
         ],
-
-        # ========================================================
-        # ESTADOS DO LOGIN
-        # ========================================================
-
         states={
-
             menus.SOLICITAR_LOGIN: [
                 MessageHandler(
                     filters.TEXT & ~filters.COMMAND,
                     menus.receber_login
                 )
             ],
-
             menus.SOLICITAR_SENHA: [
                 MessageHandler(
                     filters.TEXT & ~filters.COMMAND,
@@ -62,22 +52,15 @@ def main():
                 )
             ],
         },
-
-        # ========================================================
-        # COMANDOS DURANTE O FLUXO
-        # ========================================================
-
         fallbacks=[
             CommandHandler("start", menus.iniciar),
             CommandHandler("login", menus.iniciar_login),
             CommandHandler("logout", menus.logout),
-        ]
+        ],
     )
 
-    # Adiciona o gerenciador de login
-    app.add_handler(login_handler)
+    app.add_handler(login_handler, group=0)
 
-    
     # ============================================================
     # EDIÇÃO DO COMENTÁRIO PERSONALIZADO
     # ============================================================
@@ -86,33 +69,39 @@ def main():
         entry_points=[
             CallbackQueryHandler(
                 questoes.iniciar_edicao_comentario,
-                pattern="^editar_comentario$"
+                pattern=r"^editar_comentario$",
             )
         ],
         states={
             questoes.AGUARDANDO_COMENTARIO: [
                 MessageHandler(
                     filters.TEXT & ~filters.COMMAND,
-                    questoes.receber_comentario_personalizado
+                    questoes.receber_comentario_personalizado,
                 )
             ]
         },
         fallbacks=[
-            CommandHandler("cancelar", questoes.cancelar_edicao_comentario)
+            CommandHandler(
+                "cancelar",
+                questoes.cancelar_edicao_comentario,
+            ),
+            CommandHandler("start", menus.iniciar),
+            CommandHandler("logout", menus.logout),
         ],
         per_user=True,
-        per_chat=True
+        per_chat=True,
     )
 
-    app.add_handler(comentario_handler)
-
+    # Grupo separado para a edição do comentário
+    app.add_handler(comentario_handler, group=1)
 
     # ============================================================
-    # LOGOUT FORA DO FLUXO DE LOGIN
+    # LOGOUT
     # ============================================================
 
     app.add_handler(
-        CommandHandler("logout", menus.logout)
+        CommandHandler("logout", menus.logout),
+        group=0,
     )
 
     # ============================================================
@@ -122,36 +111,41 @@ def main():
     app.add_handler(
         CallbackQueryHandler(
             menus.voltar_inicio,
-            pattern="^inicio$"
-        )
+            pattern=r"^inicio$",
+        ),
+        group=0,
     )
 
     app.add_handler(
         CallbackQueryHandler(
             menus.selecionar_disciplina,
-            pattern="^disciplina:"
-        )
+            pattern=r"^disciplina:",
+        ),
+        group=0,
     )
 
     app.add_handler(
         CallbackQueryHandler(
             menus.selecionar_topico,
-            pattern="^topico:"
-        )
+            pattern=r"^topico:",
+        ),
+        group=0,
     )
 
     app.add_handler(
         CallbackQueryHandler(
             menus.selecionar_assunto,
-            pattern="^assunto:"
-        )
+            pattern=r"^assunto:",
+        ),
+        group=0,
     )
 
     app.add_handler(
         CallbackQueryHandler(
             menus.selecionar_bloco,
-            pattern="^bloco:"
-        )
+            pattern=r"^bloco:",
+        ),
+        group=0,
     )
 
     # ============================================================
@@ -161,19 +155,20 @@ def main():
     app.add_handler(
         CallbackQueryHandler(
             questoes.responder,
-            pattern="^responder:"
-        )
+            pattern=r"^responder:",
+        ),
+        group=0,
     )
 
     app.add_handler(
         CallbackQueryHandler(
             questoes.proxima,
-            pattern="^proxima$"
-        )
+            pattern=r"^proxima$",
+        ),
+        group=0,
     )
 
     print("Bot iniciado com sucesso!")
-
     app.run_polling()
 
 

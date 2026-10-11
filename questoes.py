@@ -355,13 +355,27 @@ async def responder(update, context):
     # --------------------------------------------------------
 
     context.user_data["questao_atual_id"] = str(questao["_id"])
-    context.user_data["questao_login_user"] = questao["quiz_login_user"]
 
-    # Recupera a versão personalizada
+    usuario = context.user_data.get("usuario", {})
+    login_user = usuario.get("login")
+
+    dono_questao = questao.get("quiz_login_user")
+
+    if not login_user or login_user != dono_questao:
+        await consulta.message.reply_text(
+        "Não foi possível identificar o usuário responsável por esta questão. "
+        "Faça login novamente."
+    )
+        return
+
+    context.user_data["questao_login_user"] = login_user
+
     comentario_personalizado = obter_comentario_personalizado(
-    questao["quiz_login_user"],
+    login_user,
     str(questao["_id"])
     )
+
+    
 
     # Se não houver versão personalizada, usa o comentário original
     comentario_formatado = (
@@ -447,85 +461,104 @@ async def proxima(update, context):
     await exibir_questao(consulta.message, context)
 
 
+
 async def iniciar_edicao_comentario(update, context):
     consulta = update.callback_query
     await consulta.answer()
 
+    # Confirma que existe uma questão selecionada
+    if not context.user_data.get("questao_atual_id"):
+        await consulta.message.reply_text(
+            "Não foi possível identificar a questão. "
+            "Responda a questão novamente e tente editar o comentário."
+        )
+        return ConversationHandler.END
+
     context.user_data["aguardando_comentario_personalizado"] = True
 
     await consulta.message.reply_text(
-        "✏️ Envie seu comentário personalizado "
-        "(máximo de 1200 caracteres)."
+        "✏️ EDITAR MEU COMENTÁRIO\n\n"
+        "Digite seu comentário personalizado (máximo de 1200 caracteres).\n"
+        "Ele será salvo somente para sua conta e não substituirá "
+        "o comentário original da questão.\n\n"
+        "Para cancelar, envie /cancelar."
     )
 
-    return AGUARDANDO_COMENTARIO    
+    return AGUARDANDO_COMENTARIO
 
 
 async def receber_comentario_personalizado(update, context):
+    mensagem = update.message
 
-    if not context.user_data.get(
-        "aguardando_comentario_personalizado"
-    ):
-        return
-
-    comentario = update.message.text.strip()
-
-    if len(comentario) > 1200:
-        await update.message.reply_text(
-            "O comentário ultrapassou 1200 caracteres. "
-            "Envie uma versão menor."
+    if not mensagem or not mensagem.text:
+        await update.effective_message.reply_text(
+            "Envie o comentário como texto, com até 1200 caracteres."
         )
-        return
+        return AGUARDANDO_COMENTARIO
+
+    comentario = mensagem.text.strip()
 
     if not comentario:
-        await update.message.reply_text(
-            "O comentário não pode ficar vazio."
+        await mensagem.reply_text(
+            "O comentário não pode ficar vazio. Digite novamente."
         )
-        return
+        return AGUARDANDO_COMENTARIO
+
+    if len(comentario) > 1200:
+        await mensagem.reply_text(
+            f"Seu comentário tem {len(comentario)} caracteres. "
+            "O limite é de 1200. Envie uma versão menor."
+        )
+        return AGUARDANDO_COMENTARIO
 
     login_user = context.user_data.get("questao_login_user")
     id_questao = context.user_data.get("questao_atual_id")
 
     if not login_user or not id_questao:
-        context.user_data[
-            "aguardando_comentario_personalizado"
-        ] = False
-
-        await update.message.reply_text(
-            "Não foi possível identificar a questão. "
-            "Abra a questão novamente."
+        context.user_data["aguardando_comentario_personalizado"] = False
+        await mensagem.reply_text(
+            "Não foi possível identificar o usuário ou a questão. "
+            "Abra a questão novamente e tente outra vez."
         )
-        return
+        return ConversationHandler.END
 
-    salvo = salvar_comentario_personalizado(
-        login_user,
-        id_questao,
-        comentario
-    )
+    try:
+        salvo = salvar_comentario_personalizado(
+            login_user,
+            id_questao,
+            comentario
+        )
+    except Exception:
+        # Registra o erro no log do Render para facilitar o diagnóstico
+        import logging
+        logging.exception("Erro ao salvar comentário personalizado")
 
-    context.user_data[
-        "aguardando_comentario_personalizado"
-    ] = False
+        await mensagem.reply_text(
+            "Ocorreu um erro ao salvar o comentário. "
+            "Tente novamente mais tarde."
+        )
+        return AGUARDANDO_COMENTARIO
 
     if salvo:
-        await update.message.reply_text(
-            "✅ Comentário personalizado salvo no MongoDB!"
+        context.user_data["aguardando_comentario_personalizado"] = False
+        await mensagem.reply_text(
+            "✅ Comentário personalizado salvo no MongoDB!\n\n"
+            "Ele será utilizado na correção desta questão para sua conta."
         )
-    else:
-        await update.message.reply_text(
-            "Não foi possível salvar o comentário."
-        )
+        return ConversationHandler.END
 
-    return ConversationHandler.END
+    await mensagem.reply_text(
+        "Não foi possível encontrar a questão para salvar o comentário. "
+        "Confira se ela pertence à sua conta e tente novamente."
+    )
+    return AGUARDANDO_COMENTARIO
 
 
 async def cancelar_edicao_comentario(update, context):
-    context.user_data[
-        "aguardando_comentario_personalizado"
-    ] = False
+    context.user_data["aguardando_comentario_personalizado"] = False
 
-    await update.message.reply_text(
-        "Edição cancelada."
+    await update.effective_message.reply_text(
+        "Edição do comentário cancelada."
     )
 
     return ConversationHandler.END
