@@ -77,6 +77,36 @@ def main():
     # Adiciona o gerenciador de login
     app.add_handler(login_handler)
 
+    
+    # ============================================================
+    # EDIÇÃO DO COMENTÁRIO PERSONALIZADO
+    # ============================================================
+
+    comentario_handler = ConversationHandler(
+        entry_points=[
+            CallbackQueryHandler(
+                questoes.iniciar_edicao_comentario,
+                pattern="^editar_comentario$"
+            )
+        ],
+        states={
+            questoes.AGUARDANDO_COMENTARIO: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    questoes.receber_comentario_personalizado
+                )
+            ]
+        },
+        fallbacks=[
+            CommandHandler("cancelar", questoes.cancelar_edicao_comentario)
+        ],
+        per_user=True,
+        per_chat=True
+    )
+
+    app.add_handler(comentario_handler)
+
+
     # ============================================================
     # LOGOUT FORA DO FLUXO DE LOGIN
     # ============================================================

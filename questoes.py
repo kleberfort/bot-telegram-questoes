@@ -1,6 +1,12 @@
-
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ConversationHandler
 
+from repositorio import (
+    salvar_comentario_personalizado,
+    obter_comentario_personalizado
+)
+
+AGUARDANDO_COMENTARIO = 1
 
 # ============================================================
 # RESUMIR ENUNCIADO
@@ -348,10 +354,20 @@ async def responder(update, context):
     # MONTAR RESPOSTA COMENTADA
     # --------------------------------------------------------
 
-    comentario_formatado = montar_comentario(
-        questao,
-        alternativa,
-        gabarito
+    context.user_data["questao_atual_id"] = str(questao["_id"])
+    context.user_data["questao_login_user"] = questao["quiz_login_user"]
+
+    # Recupera a versão personalizada
+    comentario_personalizado = obter_comentario_personalizado(
+    questao["quiz_login_user"],
+    str(questao["_id"])
+    )
+
+    # Se não houver versão personalizada, usa o comentário original
+    comentario_formatado = (
+    comentario_personalizado
+    if comentario_personalizado
+    else montar_comentario(questao, alternativa, gabarito)
     )
 
     texto = (
@@ -362,6 +378,15 @@ async def responder(update, context):
     )
 
     botoes = InlineKeyboardMarkup([
+
+        [
+            InlineKeyboardButton(
+                "✏️ Editar meu comentário",
+                callback_data="editar_comentario"
+            )
+
+        ],
+
         [
             InlineKeyboardButton(
                 "➡️ Próxima questão",
@@ -420,3 +445,87 @@ async def proxima(update, context):
         context.user_data["respondida"] = False
 
     await exibir_questao(consulta.message, context)
+
+
+async def iniciar_edicao_comentario(update, context):
+    consulta = update.callback_query
+    await consulta.answer()
+
+    context.user_data["aguardando_comentario_personalizado"] = True
+
+    await consulta.message.reply_text(
+        "✏️ Envie seu comentário personalizado "
+        "(máximo de 1200 caracteres)."
+    )
+
+    return AGUARDANDO_COMENTARIO    
+
+
+async def receber_comentario_personalizado(update, context):
+
+    if not context.user_data.get(
+        "aguardando_comentario_personalizado"
+    ):
+        return
+
+    comentario = update.message.text.strip()
+
+    if len(comentario) > 1200:
+        await update.message.reply_text(
+            "O comentário ultrapassou 1200 caracteres. "
+            "Envie uma versão menor."
+        )
+        return
+
+    if not comentario:
+        await update.message.reply_text(
+            "O comentário não pode ficar vazio."
+        )
+        return
+
+    login_user = context.user_data.get("questao_login_user")
+    id_questao = context.user_data.get("questao_atual_id")
+
+    if not login_user or not id_questao:
+        context.user_data[
+            "aguardando_comentario_personalizado"
+        ] = False
+
+        await update.message.reply_text(
+            "Não foi possível identificar a questão. "
+            "Abra a questão novamente."
+        )
+        return
+
+    salvo = salvar_comentario_personalizado(
+        login_user,
+        id_questao,
+        comentario
+    )
+
+    context.user_data[
+        "aguardando_comentario_personalizado"
+    ] = False
+
+    if salvo:
+        await update.message.reply_text(
+            "✅ Comentário personalizado salvo no MongoDB!"
+        )
+    else:
+        await update.message.reply_text(
+            "Não foi possível salvar o comentário."
+        )
+
+    return ConversationHandler.END
+
+
+async def cancelar_edicao_comentario(update, context):
+    context.user_data[
+        "aguardando_comentario_personalizado"
+    ] = False
+
+    await update.message.reply_text(
+        "Edição cancelada."
+    )
+
+    return ConversationHandler.END
