@@ -128,27 +128,32 @@ def montar_comentario(
 
 
 
+
 # ============================================================
-# EXIBIR QUESTÃO
+# EXIBIR QUESTÃO COM OU SEM IMAGEM
 # ============================================================
 
 async def exibir_questao(mensagem, context):
     lista_questoes = context.user_data.get("questoes", [])
     indice = context.user_data.get("indice_questao", 0)
 
-    # Finaliza o questionário quando todas as questões do bloco
-    # tiverem sido respondidas.
+    # --------------------------------------------------------
+    # FINALIZAR QUESTIONÁRIO
+    # --------------------------------------------------------
+
     if indice >= len(lista_questoes):
         desempenho = context.user_data.get("desempenho", {})
 
         total = desempenho.get("total", 0)
         acertos = desempenho.get("acertos", 0)
         erros = desempenho.get("erros", 0)
+
         porcentagem = acertos / total * 100 if total else 0
 
         texto = (
             "🎉 QUESTIONÁRIO FINALIZADO!\n\n"
-            f"📚 Conteúdo: {context.user_data.get('assunto', 'Geral')}\n\n"
+            f"📚 Conteúdo: "
+            f"{context.user_data.get('assunto', 'Geral')}\n\n"
             f"📝 Questões respondidas: {total}\n"
             f"✅ Acertos: {acertos}\n"
             f"❌ Erros: {erros}\n"
@@ -160,7 +165,9 @@ async def exibir_questao(mensagem, context):
         questoes_erradas = desempenho.get("questoes_erradas", [])
 
         if questoes_erradas:
-            await mensagem.reply_text("❌ QUESTÕES QUE VOCÊ ERROU:")
+            await mensagem.reply_text(
+                "❌ QUESTÕES QUE VOCÊ ERROU:"
+            )
 
             for item in questoes_erradas:
                 texto_erro = (
@@ -170,8 +177,8 @@ async def exibir_questao(mensagem, context):
                     f"Gabarito: {item['gabarito']}"
                 )
 
-                # Evita mensagens muito longas no Telegram.
                 limite = 3500
+
                 for inicio in range(0, len(texto_erro), limite):
                     await mensagem.reply_text(
                         texto_erro[inicio:inicio + limite]
@@ -183,17 +190,22 @@ async def exibir_questao(mensagem, context):
 
         return
 
+    # --------------------------------------------------------
+    # CARREGAR QUESTÃO
+    # --------------------------------------------------------
+
     questao = lista_questoes[indice]
     alternativas = questao.get("alternativas", {})
 
-    # Registra a questão e o usuário para a edição personalizada.
     usuario = context.user_data.get("usuario", {})
     login_user = usuario.get("login")
 
+    # Guarda os dados para permitir a edição do comentário.
     context.user_data["questao_atual_id"] = str(questao["_id"])
     context.user_data["questao_login_user"] = login_user
 
-    # O número é relativo ao bloco atual.
+    context.user_data["respondida"] = False
+
     texto = (
         f"📚 {questao.get('assunto', context.user_data.get('assunto', ''))}\n\n"
         f"🧠 Questão {indice + 1} de {len(lista_questoes)}\n\n"
@@ -204,6 +216,7 @@ async def exibir_questao(mensagem, context):
 
     for letra, alternativa in alternativas.items():
         texto += f"{letra}) {alternativa}\n\n"
+
         botoes.append([
             InlineKeyboardButton(
                 letra,
@@ -213,9 +226,42 @@ async def exibir_questao(mensagem, context):
 
     texto += "👇 Escolha uma alternativa:"
 
+    teclado = InlineKeyboardMarkup(botoes)
+
+    # --------------------------------------------------------
+    # VERIFICAR SE A QUESTÃO POSSUI IMAGEM
+    # --------------------------------------------------------
+
+    telegram_config = questao.get("telegram_config", {})
+
+    possui_imagem = telegram_config.get("possui_imagem", False)
+    imagem_url = telegram_config.get("imagem_url")
+
+    if possui_imagem and imagem_url:
+        try:
+            # Envia a imagem em uma mensagem separada.
+            await mensagem.reply_photo(
+                photo=imagem_url
+            )
+
+        except Exception:
+            import logging
+
+            logging.exception(
+                "Não foi possível enviar a imagem da questão %s",
+                questao.get("_id")
+            )
+
+            await mensagem.reply_text(
+                "⚠️ Não foi possível carregar a imagem desta questão. "
+                "Você ainda pode responder normalmente."
+            )
+
+    # Envia o enunciado, as alternativas e os botões.
+    # Funciona tanto para questões com imagem quanto sem imagem.
     await mensagem.reply_text(
         texto,
-        reply_markup=InlineKeyboardMarkup(botoes)
+        reply_markup=teclado
     )
 
 
