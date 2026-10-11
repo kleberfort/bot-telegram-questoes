@@ -47,27 +47,28 @@ def iniciar_desempenho(context):
 # MONTAR COMENTÁRIO DA QUESTÃO
 # ============================================================
 
-def montar_comentario(questao, alternativa_marcada, gabarito):
-    """
-    Monta a correção usando os campos novos do MongoDB.
 
-    Compatibilidade:
-    - Questões novas: comentario + analise_alternativas + fixacao.
-    - Questões antigas: somente comentario.
-    """
 
+def montar_comentario(
+    questao,
+    alternativa_marcada,
+    gabarito,
+    comentario_personalizado=None
+):
     partes = []
 
     analise = questao.get("analise_alternativas", {})
-    comentario = questao.get("comentario", "")
+    comentario_original = questao.get("comentario", "")
     fixacao = questao.get("fixacao", "")
 
-    # --------------------------------------------------------
-    # FORMATO NOVO: COMENTÁRIOS SEPARADOS POR ALTERNATIVA
-    # --------------------------------------------------------
+    # O comentário personalizado substitui somente o comentário principal.
+    comentario = (
+        comentario_personalizado
+        if comentario_personalizado
+        else comentario_original
+    )
 
     if isinstance(analise, dict) and analise:
-
         if alternativa_marcada == gabarito:
             partes.append("💡 COMENTÁRIO DA QUESTÃO")
         else:
@@ -76,26 +77,23 @@ def montar_comentario(questao, alternativa_marcada, gabarito):
                 f"ESTÁ CORRETA?"
             )
 
-        if comentario:
-            partes.append(comentario)
+        partes.append(
+            comentario
+            or "Não há comentário cadastrado para esta questão."
+        )
 
         partes.append("📚 ANÁLISE DAS ALTERNATIVAS")
 
         alternativas = questao.get("alternativas", {})
 
         for letra, texto_alternativa in alternativas.items():
-
             dados = analise.get(letra, {})
 
-            # A letra do gabarito é a referência principal
             if letra == gabarito:
-                simbolo = "🟢"
-                status = "Correta"
+                simbolo, status = "🟢", "Correta"
             else:
-                simbolo = "🔴"
-                status = "Incorreta"
+                simbolo, status = "🔴", "Incorreta"
 
-            # Utiliza o comentário individual, se existir
             explicacao = ""
 
             if isinstance(dados, dict):
@@ -113,18 +111,13 @@ def montar_comentario(questao, alternativa_marcada, gabarito):
 
         return "\n\n".join(partes)
 
-    # --------------------------------------------------------
-    # FORMATO ANTIGO: UM ÚNICO CAMPO COMENTARIO
-    # --------------------------------------------------------
-
+    # Formato para questões sem análise individual das alternativas.
     partes.append("📖 COMENTÁRIO")
 
-    if comentario:
-        partes.append(comentario)
-    else:
-        partes.append(
-            "Não há comentário cadastrado para esta questão."
-        )
+    partes.append(
+        comentario
+        or "Não há comentário cadastrado para esta questão."
+    )
 
     if fixacao:
         partes.append(
@@ -134,35 +127,28 @@ def montar_comentario(questao, alternativa_marcada, gabarito):
     return "\n\n".join(partes)
 
 
+
 # ============================================================
 # EXIBIR QUESTÃO
 # ============================================================
 
 async def exibir_questao(mensagem, context):
-
-    questoes = context.user_data.get("questoes", [])
+    lista_questoes = context.user_data.get("questoes", [])
     indice = context.user_data.get("indice_questao", 0)
 
-    # --------------------------------------------------------
-    # FINALIZAR QUESTIONÁRIO
-    # --------------------------------------------------------
-
-    if indice >= len(questoes):
-
+    # Finaliza o questionário quando todas as questões do bloco
+    # tiverem sido respondidas.
+    if indice >= len(lista_questoes):
         desempenho = context.user_data.get("desempenho", {})
 
         total = desempenho.get("total", 0)
         acertos = desempenho.get("acertos", 0)
         erros = desempenho.get("erros", 0)
-
-        porcentagem = (
-            acertos / total * 100 if total > 0 else 0
-        )
+        porcentagem = acertos / total * 100 if total else 0
 
         texto = (
             "🎉 QUESTIONÁRIO FINALIZADO!\n\n"
-            f"📚 Conteúdo: "
-            f"{context.user_data.get('assunto', 'Geral')}\n\n"
+            f"📚 Conteúdo: {context.user_data.get('assunto', 'Geral')}\n\n"
             f"📝 Questões respondidas: {total}\n"
             f"✅ Acertos: {acertos}\n"
             f"❌ Erros: {erros}\n"
@@ -171,18 +157,12 @@ async def exibir_questao(mensagem, context):
 
         await mensagem.reply_text(texto)
 
-        questoes_erradas = desempenho.get(
-            "questoes_erradas", []
-        )
+        questoes_erradas = desempenho.get("questoes_erradas", [])
 
         if questoes_erradas:
-
-            await mensagem.reply_text(
-                "❌ QUESTÕES QUE VOCÊ ERROU:"
-            )
+            await mensagem.reply_text("❌ QUESTÕES QUE VOCÊ ERROU:")
 
             for item in questoes_erradas:
-
                 texto_erro = (
                     f"Questão {item['numero']}\n\n"
                     f"{item['enunciado']}\n\n"
@@ -190,18 +170,12 @@ async def exibir_questao(mensagem, context):
                     f"Gabarito: {item['gabarito']}"
                 )
 
-                # Divide o texto para evitar mensagens extensas
+                # Evita mensagens muito longas no Telegram.
                 limite = 3500
-
-                for inicio in range(
-                    0, len(texto_erro), limite
-                ):
-                    parte = texto_erro[
-                        inicio:inicio + limite
-                    ]
-
-                    await mensagem.reply_text(parte)
-
+                for inicio in range(0, len(texto_erro), limite):
+                    await mensagem.reply_text(
+                        texto_erro[inicio:inicio + limite]
+                    )
         else:
             await mensagem.reply_text(
                 "🏆 Parabéns! Você não errou nenhuma questão."
@@ -209,35 +183,27 @@ async def exibir_questao(mensagem, context):
 
         return
 
-    # --------------------------------------------------------
-    # PREPARAR QUESTÃO
-    # --------------------------------------------------------
-
-    questao = questoes[indice]
-
+    questao = lista_questoes[indice]
     alternativas = questao.get("alternativas", {})
 
-    total_questoes = context.user_data.get(
-        "total_questoes_assunto", len(questoes)
-    )
+    # Registra a questão e o usuário para a edição personalizada.
+    usuario = context.user_data.get("usuario", {})
+    login_user = usuario.get("login")
 
-    inicio_bloco = context.user_data.get("inicio_bloco", 0)
+    context.user_data["questao_atual_id"] = str(questao["_id"])
+    context.user_data["questao_login_user"] = login_user
 
-    numero_atual = inicio_bloco + indice + 1
-
+    # O número é relativo ao bloco atual.
     texto = (
-        f"📚 {questao.get('assunto', '')}\n\n"
-        f"🧠 Questão {numero_atual} de {total_questoes}\n\n"
+        f"📚 {questao.get('assunto', context.user_data.get('assunto', ''))}\n\n"
+        f"🧠 Questão {indice + 1} de {len(lista_questoes)}\n\n"
         f"{questao.get('enunciado', '')}\n\n"
     )
 
     botoes = []
 
-    # Cria um botão para cada alternativa cadastrada
     for letra, alternativa in alternativas.items():
-
         texto += f"{letra}) {alternativa}\n\n"
-
         botoes.append([
             InlineKeyboardButton(
                 letra,
@@ -258,54 +224,48 @@ async def exibir_questao(mensagem, context):
 # ============================================================
 
 async def responder(update, context):
-
     consulta = update.callback_query
 
-    # Impede responder mais de uma vez
+    # Impede que a mesma questão seja respondida mais de uma vez.
     if context.user_data.get("respondida"):
-
         await consulta.answer(
             "Você já respondeu esta questão.",
             show_alert=True
         )
-
         return
 
     await consulta.answer()
 
-    questoes = context.user_data.get("questoes", [])
+    lista_questoes = context.user_data.get("questoes", [])
     indice = context.user_data.get("indice_questao", 0)
 
-    if indice >= len(questoes):
-
+    if indice >= len(lista_questoes):
         await consulta.message.reply_text(
             "Questão não encontrada. Digite /start."
         )
-
         return
 
-    questao = questoes[indice]
-
+    questao = lista_questoes[indice]
     alternativa = consulta.data.split(":")[1].upper()
-
     alternativas = questao.get("alternativas", {})
 
-    # Valida a alternativa recebida
     if alternativa not in alternativas:
-
         await consulta.answer(
             "Alternativa inválida.",
             show_alert=True
         )
-
         return
 
     gabarito = questao.get("resposta", "").upper()
 
-    # Remove os botões da questão respondida
-    await consulta.edit_message_reply_markup(
-        reply_markup=None
-    )
+    # Registra o usuário e a questão atual para a edição do comentário.
+    usuario = context.user_data.get("usuario", {})
+    login_user = usuario.get("login")
+
+    context.user_data["questao_atual_id"] = str(questao["_id"])
+    context.user_data["questao_login_user"] = login_user
+
+    await consulta.edit_message_reply_markup(reply_markup=None)
 
     desempenho = context.user_data.setdefault(
         "desempenho",
@@ -318,30 +278,17 @@ async def responder(update, context):
     )
 
     context.user_data["respondida"] = True
-
     desempenho["total"] += 1
 
-    # --------------------------------------------------------
-    # VERIFICAR RESPOSTA
-    # --------------------------------------------------------
-
     if alternativa == gabarito:
-
         resultado = "✅ RESPOSTA CORRETA!"
-
         desempenho["acertos"] += 1
-
     else:
-
         resultado = "❌ RESPOSTA INCORRETA!"
-
         desempenho["erros"] += 1
 
         desempenho["questoes_erradas"].append({
-            "numero": (
-                context.user_data.get("inicio_bloco", 0)
-                + indice + 1
-            ),
+            "numero": indice + 1,
             "assunto": questao.get("assunto", ""),
             "enunciado": resumir_enunciado(
                 questao.get("enunciado", "")
@@ -350,38 +297,28 @@ async def responder(update, context):
             "gabarito": gabarito
         })
 
-    # --------------------------------------------------------
-    # MONTAR RESPOSTA COMENTADA
-    # --------------------------------------------------------
+    # Busca o comentário personalizado deste usuário para esta questão.
+    comentario_personalizado = ""
 
-    context.user_data["questao_atual_id"] = str(questao["_id"])
+    if login_user:
+        try:
+            comentario_personalizado = obter_comentario_personalizado(
+                login_user,
+                str(questao["_id"])
+            )
+        except Exception:
+            import logging
+            logging.exception(
+                "Erro ao buscar comentário personalizado"
+            )
 
-    usuario = context.user_data.get("usuario", {})
-    login_user = usuario.get("login")
-
-    dono_questao = questao.get("quiz_login_user")
-
-    if not login_user or login_user != dono_questao:
-        await consulta.message.reply_text(
-        "Não foi possível identificar o usuário responsável por esta questão. "
-        "Faça login novamente."
-    )
-        return
-
-    context.user_data["questao_login_user"] = login_user
-
-    comentario_personalizado = obter_comentario_personalizado(
-    login_user,
-    str(questao["_id"])
-    )
-
-    
-
-    # Se não houver versão personalizada, usa o comentário original
-    comentario_formatado = (
-    comentario_personalizado
-    if comentario_personalizado
-    else montar_comentario(questao, alternativa, gabarito)
+    # O comentário personalizado altera somente o comentário principal.
+    # A análise das alternativas e a fixação continuam sendo exibidas.
+    comentario_formatado = montar_comentario(
+        questao,
+        alternativa,
+        gabarito,
+        comentario_personalizado=comentario_personalizado
     )
 
     texto = (
@@ -392,15 +329,12 @@ async def responder(update, context):
     )
 
     botoes = InlineKeyboardMarkup([
-
         [
             InlineKeyboardButton(
                 "✏️ Editar meu comentário",
                 callback_data="editar_comentario"
             )
-
         ],
-
         [
             InlineKeyboardButton(
                 "➡️ Próxima questão",
@@ -415,7 +349,6 @@ async def responder(update, context):
         ]
     ])
 
-    # Mantém a navegação atual
     await consulta.message.reply_text(
         texto,
         reply_markup=botoes
@@ -462,6 +395,7 @@ async def proxima(update, context):
 
 
 
+
 async def iniciar_edicao_comentario(update, context):
     consulta = update.callback_query
     await consulta.answer()
@@ -470,7 +404,18 @@ async def iniciar_edicao_comentario(update, context):
     if not context.user_data.get("questao_atual_id"):
         await consulta.message.reply_text(
             "Não foi possível identificar a questão. "
-            "Responda a questão novamente e tente editar o comentário."
+            "Responda à questão novamente e tente editar o comentário."
+        )
+        return ConversationHandler.END
+
+    # Confirma que o usuário está identificado
+    usuario = context.user_data.get("usuario", {})
+    login_user = usuario.get("login")
+
+    if not login_user:
+        await consulta.message.reply_text(
+            "Sua sessão não foi identificada. "
+            "Faça login novamente para editar seu comentário."
         )
         return ConversationHandler.END
 
@@ -478,13 +423,15 @@ async def iniciar_edicao_comentario(update, context):
 
     await consulta.message.reply_text(
         "✏️ EDITAR MEU COMENTÁRIO\n\n"
-        "Digite seu comentário personalizado (máximo de 1200 caracteres).\n"
+        "Digite seu comentário personalizado "
+        "(máximo de 1200 caracteres).\n\n"
         "Ele será salvo somente para sua conta e não substituirá "
         "o comentário original da questão.\n\n"
         "Para cancelar, envie /cancelar."
     )
 
     return AGUARDANDO_COMENTARIO
+
 
 
 async def receber_comentario_personalizado(update, context):
