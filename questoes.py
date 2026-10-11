@@ -129,6 +129,7 @@ def montar_comentario(
 
 
 
+
 # ============================================================
 # EXIBIR QUESTÃO COM OU SEM IMAGEM
 # ============================================================
@@ -206,11 +207,38 @@ async def exibir_questao(mensagem, context):
 
     context.user_data["respondida"] = False
 
+    # --------------------------------------------------------
+    # VERIFICAR SE A QUESTÃO POSSUI IMAGEM
+    # --------------------------------------------------------
+
+    telegram_config = questao.get("telegram_config", {})
+
+    possui_imagem = telegram_config.get("possui_imagem", False)
+    imagem_url = telegram_config.get("imagem_url")
+
+    possui_imagem = bool(possui_imagem and imagem_url)
+
+    # --------------------------------------------------------
+    # MONTAR ENUNCIADO
+    # --------------------------------------------------------
+
+    orientacao_imagem = ""
+
+    if possui_imagem:
+        orientacao_imagem = (
+            "📷 Para responder à questão, veja a imagem acima.\n\n"
+        )
+
     texto = (
         f"📚 {questao.get('assunto', context.user_data.get('assunto', ''))}\n\n"
         f"🧠 Questão {indice + 1} de {len(lista_questoes)}\n\n"
+        f"{orientacao_imagem}"
         f"{questao.get('enunciado', '')}\n\n"
     )
+
+    # --------------------------------------------------------
+    # MONTAR ALTERNATIVAS E BOTÕES
+    # --------------------------------------------------------
 
     botoes = []
 
@@ -229,17 +257,11 @@ async def exibir_questao(mensagem, context):
     teclado = InlineKeyboardMarkup(botoes)
 
     # --------------------------------------------------------
-    # VERIFICAR SE A QUESTÃO POSSUI IMAGEM
+    # ENVIAR IMAGEM, SE EXISTIR
     # --------------------------------------------------------
 
-    telegram_config = questao.get("telegram_config", {})
-
-    possui_imagem = telegram_config.get("possui_imagem", False)
-    imagem_url = telegram_config.get("imagem_url")
-
-    if possui_imagem and imagem_url:
+    if possui_imagem:
         try:
-            # Envia a imagem em uma mensagem separada.
             await mensagem.reply_photo(
                 photo=imagem_url
             )
@@ -254,11 +276,13 @@ async def exibir_questao(mensagem, context):
 
             await mensagem.reply_text(
                 "⚠️ Não foi possível carregar a imagem desta questão. "
-                "Você ainda pode responder normalmente."
+                "Confira o enunciado abaixo e responda normalmente."
             )
 
-    # Envia o enunciado, as alternativas e os botões.
-    # Funciona tanto para questões com imagem quanto sem imagem.
+    # --------------------------------------------------------
+    # ENVIAR ENUNCIADO, ALTERNATIVAS E BOTÕES
+    # --------------------------------------------------------
+
     await mensagem.reply_text(
         texto,
         reply_markup=teclado
