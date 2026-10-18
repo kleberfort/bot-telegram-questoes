@@ -13,7 +13,6 @@ from database import testar_conexao
 import menus
 import questoes
 
-
 def main():
 
     # Testa a conexão com o MongoDB
@@ -22,8 +21,7 @@ def main():
         return
 
     # Cria a aplicação com processamento sequencial
-    app = (
-        Application.builder()
+    app = (Application.builder()
         .token(TOKEN)
         .concurrent_updates(False)
         .build()
@@ -34,23 +32,9 @@ def main():
     # ============================================================
 
     login_handler = ConversationHandler(
-        entry_points=[
-            CommandHandler("start", menus.iniciar),
-            CommandHandler("login", menus.iniciar_login),
-        ],
-        states={
-            menus.SOLICITAR_LOGIN: [
-                MessageHandler(
-                    filters.TEXT & ~filters.COMMAND,
-                    menus.receber_login
-                )
-            ],
-            menus.SOLICITAR_SENHA: [
-                MessageHandler(
-                    filters.TEXT & ~filters.COMMAND,
-                    menus.receber_senha
-                )
-            ],
+        entry_points=[CommandHandler("start", menus.iniciar),CommandHandler("login", menus.iniciar_login),],
+        states={menus.SOLICITAR_LOGIN: [MessageHandler(filters.TEXT & ~filters.COMMAND,menus.receber_login)],
+            menus.SOLICITAR_SENHA: [MessageHandler(filters.TEXT & ~filters.COMMAND,menus.receber_senha)],
         },
         fallbacks=[
             CommandHandler("start", menus.iniciar),
@@ -66,28 +50,11 @@ def main():
     # ============================================================
 
     comentario_handler = ConversationHandler(
-        entry_points=[
-            CallbackQueryHandler(
-                questoes.iniciar_edicao_comentario,
-                pattern=r"^editar_comentario$",
-            )
-        ],
-        states={
-            questoes.AGUARDANDO_COMENTARIO: [
-                MessageHandler(
-                    filters.TEXT & ~filters.COMMAND,
-                    questoes.receber_comentario_personalizado,
-                )
-            ]
-        },
-        fallbacks=[
-            CommandHandler(
-                "cancelar",
-                questoes.cancelar_edicao_comentario,
-            ),
+        entry_points=[CallbackQueryHandler(questoes.iniciar_edicao_comentario,pattern=r"^editar_comentario$",)],
+        states={questoes.AGUARDANDO_COMENTARIO: [MessageHandler(filters.TEXT & ~filters.COMMAND,questoes.receber_comentario_personalizado,)]},
+        fallbacks=[CommandHandler("cancelar",questoes.cancelar_edicao_comentario,),
             CommandHandler("start", menus.iniciar),
-            CommandHandler("logout", menus.logout),
-        ],
+            CommandHandler("logout", menus.logout),],
         per_user=True,
         per_chat=True,
     )
@@ -98,79 +65,25 @@ def main():
     # ============================================================
     # LOGOUT
     # ============================================================
-
-    app.add_handler(
-        CommandHandler("logout", menus.logout),
-        group=0,
-    )
+    app.add_handler(CommandHandler("logout", menus.logout),group=0,)
 
     # ============================================================
     # NAVEGAÇÃO PELOS MENUS
     # ============================================================
-
-    app.add_handler(
-        CallbackQueryHandler(
-            menus.voltar_inicio,
-            pattern=r"^inicio$",
-        ),
-        group=0,
-    )
-
-    app.add_handler(
-        CallbackQueryHandler(
-            menus.selecionar_disciplina,
-            pattern=r"^disciplina:",
-        ),
-        group=0,
-    )
-
-    app.add_handler(
-        CallbackQueryHandler(
-            menus.selecionar_topico,
-            pattern=r"^topico:",
-        ),
-        group=0,
-    )
-
-    app.add_handler(
-        CallbackQueryHandler(
-            menus.selecionar_assunto,
-            pattern=r"^assunto:",
-        ),
-        group=0,
-    )
-
-    app.add_handler(
-        CallbackQueryHandler(
-            menus.selecionar_bloco,
-            pattern=r"^bloco:",
-        ),
-        group=0,
-    )
+    app.add_handler(CallbackQueryHandler(menus.voltar_inicio,pattern=r"^inicio$",),group=0,)
+    app.add_handler(CallbackQueryHandler(menus.selecionar_disciplina,pattern=r"^disciplina:",),group=0,)
+    app.add_handler(CallbackQueryHandler(menus.selecionar_topico,pattern=r"^topico:",),group=0,)
+    app.add_handler(CallbackQueryHandler(menus.selecionar_assunto,pattern=r"^assunto:",),group=0,)
+    app.add_handler(CallbackQueryHandler(menus.selecionar_bloco,pattern=r"^bloco:",),group=0,)
 
     # ============================================================
     # QUESTÕES
     # ============================================================
-
-    app.add_handler(
-        CallbackQueryHandler(
-            questoes.responder,
-            pattern=r"^responder:",
-        ),
-        group=0,
-    )
-
-    app.add_handler(
-        CallbackQueryHandler(
-            questoes.proxima,
-            pattern=r"^proxima$",
-        ),
-        group=0,
-    )
+    app.add_handler(CallbackQueryHandler(questoes.responder,pattern=r"^responder:",),group=0,)
+    app.add_handler(CallbackQueryHandler(questoes.proxima,pattern=r"^proxima$",),group=0,)
 
     print("Bot iniciado com sucesso!")
     app.run_polling()
-
 
 if __name__ == "__main__":
     main()

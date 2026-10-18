@@ -1,5 +1,6 @@
-from database import colecao
+from database import colecao, colecao_comentarios 
 
+from bson import ObjectId
 
 def listar_disciplinas(login_user):
     # Filtra as disciplinas únicas que pertencem apenas a este usuário
@@ -34,51 +35,60 @@ def listar_questoes(login_user, disciplina, topico, assunto):
 def salvar_comentario_personalizado(
     login_user, id_questao, comentario
 ):
-    """Salva o comentário personalizado do usuário na questão."""
-
-    from bson import ObjectId
-
     if len(comentario) > 1200:
         raise ValueError(
             "O comentário não pode ultrapassar 1200 caracteres."
         )
 
-    filtro = {
-        "_id": ObjectId(id_questao),
-        "quiz_login_user": login_user
-    }
+    questao_id = ObjectId(id_questao)
 
-    resultado = colecao.update_one(
-        filtro,
-        {
-            "$set": {
-                "comentario_personalizado": comentario
-            }
-        }
+    # Confirma que a questão existe no banco central.
+    questao = colecao.find_one(
+        {"_id": questao_id},
+        {"_id": 1}
     )
 
-    return resultado.matched_count == 1
+    if not questao:
+        return False
+
+    # Salva o comentário separado por usuário.
+    colecao_comentarios.update_one(
+        {
+            "login_user": login_user,
+            "questao_id": questao_id
+        },
+        {
+            "$set": {
+                "comentario": comentario
+            }
+        },
+        upsert=True
+    )
+
+    return True
+
+
+
+
 
 
 def obter_comentario_personalizado(
     login_user, id_questao
 ):
-    """Recupera o comentário personalizado do usuário."""
-
-    from bson import ObjectId
-
-    filtro = {
-        "_id": ObjectId(id_questao),
-        "quiz_login_user": login_user
-    }
-
-    questao = colecao.find_one(
-        filtro,
-        {"comentario_personalizado": 1}
+    comentario = colecao_comentarios.find_one(
+        {
+            "login_user": login_user,
+            "questao_id": ObjectId(id_questao)
+        },
+        {
+            "_id": 0,
+            "comentario": 1
+        }
     )
 
-    if questao:
-        return questao.get("comentario_personalizado", "")
+    if comentario:
+        return comentario.get("comentario", "")
 
     return ""
+
 

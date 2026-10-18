@@ -573,9 +573,5 @@ async def receber_comentario_personalizado(update, context):
 
 async def cancelar_edicao_comentario(update, context):
     context.user_data["aguardando_comentario_personalizado"] = False
-
-    await update.effective_message.reply_text(
-        "Edição do comentário cancelada."
-    )
-
+    await update.effective_message.reply_text("Edição do comentário cancelada.")
     return ConversationHandler.END

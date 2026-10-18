@@ -28,32 +28,13 @@ def montar_teclado(opcoes, prefixo):
     # 2 opções por linha
     for i in range(0, len(opcoes), 2):
 
-        linha = [
-            InlineKeyboardButton(
-                opcoes[i],
-                callback_data=f"{prefixo}:{i}"
-            )
-        ]
-
+        linha = [InlineKeyboardButton(opcoes[i],callback_data=f"{prefixo}:{i}")]
         if i + 1 < len(opcoes):
-
-            linha.append(
-                InlineKeyboardButton(
-                    opcoes[i + 1],
-                    callback_data=f"{prefixo}:{i + 1}"
-                )
-            )
-
+            linha.append(InlineKeyboardButton(opcoes[i + 1],callback_data=f"{prefixo}:{i + 1}"))
         botoes.append(linha)
-
+        
     # Botão voltar ao início
-    botoes.append([
-        InlineKeyboardButton(
-            "⬅️ Voltar ao início",
-            callback_data="inicio"
-        )
-    ])
-
+    botoes.append([InlineKeyboardButton("⬅️ Voltar ao início",callback_data="inicio")])
     return InlineKeyboardMarkup(botoes)
 
 
@@ -842,8 +823,7 @@ async def voltar_inicio(
     # 5. MOSTRA O MENU INICIAL
     # ========================================================
 
-    nome = (
-        usuario.get("nome", "usuário")
+    nome = (usuario.get("nome", "usuário")
         if usuario
         else "usuário"
     )
@@ -851,8 +831,5 @@ async def voltar_inicio(
     await consulta.message.reply_text(
         f"👋 {nome}\n\n"
         "📚 Escolha a área:",
-        reply_markup=montar_teclado(
-            disciplinas,
-            "disciplina"
-        )
+        reply_markup=montar_teclado(disciplinas,"disciplina")
     )

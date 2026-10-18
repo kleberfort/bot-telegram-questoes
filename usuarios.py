@@ -7,18 +7,11 @@ import bcrypt
 # ============================================================
 
 def criar_usuario(login, senha, nome):
-
-    usuario_existente = colecao_usuarios.find_one({
-        "login": login
-    })
-
+    usuario_existente = colecao_usuarios.find_one({"login": login})
     if usuario_existente:
         return None
 
-    senha_hash = bcrypt.hashpw(
-        senha.encode("utf-8"),
-        bcrypt.gensalt()
-    )
+    senha_hash = bcrypt.hashpw(senha.encode("utf-8"),bcrypt.gensalt())
 
     usuario = {
         "login": login,
@@ -37,27 +30,19 @@ def criar_usuario(login, senha, nome):
 # ============================================================
 
 def buscar_por_login(login):
-
-    return colecao_usuarios.find_one({
-        "login": login
-    })
-
+    return colecao_usuarios.find_one({"login": login})
 
 # ============================================================
 # VALIDAR LOGIN E SENHA
 # ============================================================
 
 def autenticar(login, senha):
-
     usuario = buscar_por_login(login)
 
     if usuario is None:
         return None
 
-    senha_correta = bcrypt.checkpw(
-        senha.encode("utf-8"),
-        usuario["senha_hash"]
-    )
+    senha_correta = bcrypt.checkpw(senha.encode("utf-8"),usuario["senha_hash"])
 
     if not senha_correta:
         return None
@@ -91,18 +76,13 @@ def vincular_telegram(login, telegram_id):
 # ============================================================
 
 def buscar_por_telegram(telegram_id):
-
-    return colecao_usuarios.find_one({
-        "telegram_id": telegram_id,
-        "ativo": True
-    })
+    return colecao_usuarios.find_one({"telegram_id": telegram_id,"ativo": True})
 
 # ============================================================
 # DESVINCULAR TELEGRAM DO USUÁRIO
 # ============================================================
 
 def desvincular_telegram(telegram_id):
-
     resultado = colecao_usuarios.update_one(
         {
             "telegram_id": telegram_id

@@ -1,7 +1,6 @@
 from pymongo import MongoClient
 from config import MONGODB_URI
 
-
 # ============================================================
 # CONEXÃO COM MONGODB
 # ============================================================
@@ -9,20 +8,12 @@ from config import MONGODB_URI
 if not MONGODB_URI:
     raise ValueError("MONGODB_URI não foi configurada.")
 
-
-cliente = MongoClient(
-    MONGODB_URI,
-    serverSelectionTimeoutMS=30000,
-    connectTimeoutMS=20000
-)
-
+cliente = MongoClient(MONGODB_URI,serverSelectionTimeoutMS=30000,connectTimeoutMS=20000)
 
 # ============================================================
 # BANCO DE DADOS
 # ============================================================
-
 banco = cliente["questoes_concurso"]
-
 
 # ============================================================
 # COLEÇÕES
@@ -34,6 +25,9 @@ colecao = banco["questoes"]
 # Nova coleção dos usuários
 colecao_usuarios = banco["usuarios"]
 
+# Novas coleções
+colecao_comentarios = banco["comentarios_usuarios"]
+colecao_questoes_usuarios = banco["questoes_usuarios"]
 
 # ============================================================
 # TESTAR CONEXÃO
