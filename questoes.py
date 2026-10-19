@@ -293,8 +293,21 @@ async def exibir_questao(mensagem, context):
 # RESPONDER QUESTÃO
 # ============================================================
 
+
 async def responder(update, context):
     consulta = update.callback_query
+
+    # Recupera os dados do usuário antes de utilizá-los.
+    usuario = context.user_data.get("usuario", {})
+    login_user = usuario.get("login")
+
+    # Diagnóstico do usuário que respondeu à questão.
+    print(
+        "DIAGNÓSTICO TELEGRAM |",
+        "telegram_id:", update.effective_user.id,
+        "| chat_id:", update.effective_chat.id,
+        "| login:", login_user
+    )
 
     # Impede que a mesma questão seja respondida mais de uma vez.
     if context.user_data.get("respondida"):
@@ -306,6 +319,7 @@ async def responder(update, context):
 
     await consulta.answer()
 
+    # Recupera a lista de questões e o índice da questão atual.
     lista_questoes = context.user_data.get("questoes", [])
     indice = context.user_data.get("indice_questao", 0)
 
@@ -315,10 +329,12 @@ async def responder(update, context):
         )
         return
 
+    # Recupera a questão atual.
     questao = lista_questoes[indice]
     alternativa = consulta.data.split(":")[1].upper()
     alternativas = questao.get("alternativas", {})
 
+    # Valida a alternativa selecionada.
     if alternativa not in alternativas:
         await consulta.answer(
             "Alternativa inválida.",
@@ -326,17 +342,17 @@ async def responder(update, context):
         )
         return
 
+    # Recupera o gabarito oficial da questão.
     gabarito = questao.get("resposta", "").upper()
 
-    # Registra o usuário e a questão atual para a edição do comentário.
-    usuario = context.user_data.get("usuario", {})
-    login_user = usuario.get("login")
-
+    # Registra o usuário e a questão atual para editar o comentário.
     context.user_data["questao_atual_id"] = str(questao["_id"])
     context.user_data["questao_login_user"] = login_user
 
+    # Remove os botões de alternativas após a resposta.
     await consulta.edit_message_reply_markup(reply_markup=None)
 
+    # Inicializa ou recupera o desempenho do usuário.
     desempenho = context.user_data.setdefault(
         "desempenho",
         {
@@ -350,13 +366,16 @@ async def responder(update, context):
     context.user_data["respondida"] = True
     desempenho["total"] += 1
 
+    # Verifica se a resposta está correta.
     if alternativa == gabarito:
         resultado = "✅ RESPOSTA CORRETA!"
         desempenho["acertos"] += 1
+
     else:
         resultado = "❌ RESPOSTA INCORRETA!"
         desempenho["erros"] += 1
 
+        # Registra os dados da questão respondida incorretamente.
         desempenho["questoes_erradas"].append({
             "numero": indice + 1,
             "assunto": questao.get("assunto", ""),
@@ -367,7 +386,7 @@ async def responder(update, context):
             "gabarito": gabarito
         })
 
-    # Busca o comentário personalizado deste usuário para esta questão.
+    # Busca o comentário personalizado deste usuário para a questão.
     comentario_personalizado = ""
 
     if login_user:
@@ -376,14 +395,14 @@ async def responder(update, context):
                 login_user,
                 str(questao["_id"])
             )
+
         except Exception:
             import logging
             logging.exception(
                 "Erro ao buscar comentário personalizado"
             )
 
-    # O comentário personalizado altera somente o comentário principal.
-    # A análise das alternativas e a fixação continuam sendo exibidas.
+    # Monta o comentário e a explicação da questão.
     comentario_formatado = montar_comentario(
         questao,
         alternativa,
@@ -391,6 +410,7 @@ async def responder(update, context):
         comentario_personalizado=comentario_personalizado
     )
 
+    # Monta a mensagem de feedback.
     texto = (
         f"{resultado}\n\n"
         f"📝 Você marcou: {alternativa}\n"
@@ -398,6 +418,7 @@ async def responder(update, context):
         f"{comentario_formatado}"
     )
 
+    # Cria os botões de navegação.
     botoes = InlineKeyboardMarkup([
         [
             InlineKeyboardButton(
@@ -419,6 +440,7 @@ async def responder(update, context):
         ]
     ])
 
+    # Exibe o resultado e as opções de navegação.
     await consulta.message.reply_text(
         texto,
         reply_markup=botoes
@@ -506,6 +528,15 @@ async def iniciar_edicao_comentario(update, context):
 
 async def receber_comentario_personalizado(update, context):
     mensagem = update.message
+
+    print(
+    "DIAGNÓSTICO COMENTÁRIO |",
+    "telegram_id:", update.effective_user.id,
+    "| chat_id:", update.effective_chat.id,
+    "| login:", context.user_data.get("usuario", {}).get("login"),
+    "| login da questão:", context.user_data.get("questao_login_user")
+)
+
 
     if not mensagem or not mensagem.text:
         await update.effective_message.reply_text(
