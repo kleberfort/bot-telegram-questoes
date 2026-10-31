@@ -77,6 +77,18 @@ def main():
     app.add_handler(CallbackQueryHandler(menus.selecionar_bloco,pattern=r"^bloco:",),group=0,)
 
     # ============================================================
+    # GRADE DE QUESTÕES
+    # ============================================================
+
+    app.add_handler(
+    CallbackQueryHandler(
+        menus.visualizar_grade_questoes,
+        pattern=r"^grade_questoes$"
+    ),
+    group=0
+    )
+
+    # ============================================================
     # QUESTÕES
     # ============================================================
     app.add_handler(CallbackQueryHandler(questoes.responder,pattern=r"^responder:",),group=0,)

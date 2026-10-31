@@ -213,3 +213,123 @@ def obter_comentario_personalizado(
         return comentario.get("comentario", "")
 
     return ""
+
+
+# ============================================================
+# GRADE QUANTITATIVA DE QUESTÕES DO USUÁRIO
+# ============================================================
+
+def obter_grade_questoes(login_user):
+
+    if not login_user:
+        return None
+
+    # 1. Busca os vínculos pertencentes ao usuário.
+    vinculos = list(
+        colecao_questoes_usuarios.find(
+            {"login_user": login_user},
+            {
+                "_id": 0,
+                "questao_id": 1,
+                "disciplina": 1,
+                "topico": 1,
+                "assunto": 1
+            }
+        )
+    )
+
+    if not vinculos:
+        return None
+
+    # 2. Recupera os IDs distintos das questões.
+    ids = list({
+        v["questao_id"]
+        for v in vinculos
+        if v.get("questao_id") is not None
+    })
+
+    if not ids:
+        return None
+
+    # 3. Confirma quais questões realmente existem.
+    ids_validos = set(
+        colecao.distinct(
+            "_id",
+            {"_id": {"$in": ids}}
+        )
+    )
+
+    # 4. Monta a estrutura hierárquica.
+    grade = {}
+
+    total_geral = set()
+
+    for vinculo in vinculos:
+
+        questao_id = vinculo.get("questao_id")
+
+        if questao_id not in ids_validos:
+            continue
+
+        disciplina = vinculo.get("disciplina")
+        topico = vinculo.get("topico")
+        assunto = vinculo.get("assunto")
+
+        if not all([disciplina, topico, assunto]):
+            continue
+
+        total_geral.add(questao_id)
+
+        grade.setdefault(disciplina, {})
+        grade[disciplina].setdefault(topico, {})
+        grade[disciplina][topico].setdefault(
+            assunto, set()
+        )
+
+        grade[disciplina][topico][assunto].add(
+            questao_id
+        )
+
+    if not total_geral:
+        return None
+
+    # 5. Converte os conjuntos em quantidades.
+    resultado = {
+        "total": len(total_geral),
+        "disciplinas": {}
+    }
+
+    for disciplina in sorted(grade):
+
+        total_disciplina = 0
+        topicos_resultado = {}
+
+        for topico in sorted(grade[disciplina]):
+
+            total_topico = 0
+            assuntos_resultado = {}
+
+            for assunto in sorted(
+                grade[disciplina][topico]
+            ):
+
+                quantidade = len(
+                    grade[disciplina][topico][assunto]
+                )
+
+                assuntos_resultado[assunto] = quantidade
+                total_topico += quantidade
+
+            topicos_resultado[topico] = {
+                "total": total_topico,
+                "assuntos": assuntos_resultado
+            }
+
+            total_disciplina += total_topico
+
+        resultado["disciplinas"][disciplina] = {
+            "total": total_disciplina,
+            "topicos": topicos_resultado
+        }
+
+    return resultado

@@ -39,6 +39,161 @@ def montar_teclado(opcoes, prefixo):
 
 
 # ============================================================
+# MENU PRINCIPAL COM ACESSO À GRADE
+# ============================================================
+
+def montar_teclado_areas(disciplinas):
+
+    teclado = montar_teclado(
+        disciplinas,
+        "disciplina"
+    )
+
+    botoes = list(teclado.inline_keyboard)
+
+    # Botão de visualização da grade.
+    botoes.insert(
+        -1,
+        [
+            InlineKeyboardButton(
+                "📋 Mapeamento de Questões",
+                callback_data="grade_questoes"
+            )
+        ]
+    )
+
+    return InlineKeyboardMarkup(botoes)
+
+
+
+# ============================================================
+# FORMATAR GRADE COMPLETA DE QUESTÕES
+# ============================================================
+
+
+
+
+def formatar_grade_questoes(grade):
+
+    from html import escape
+
+    linhas = []
+
+    # ========================================================
+    # CABEÇALHO GERAL
+    # ========================================================
+
+    linhas.append(
+        "📋 <b>MEU ACERVO DE QUESTÕES</b>"
+    )
+
+    linhas.append(
+        f"📊 Total: {grade['total']} questões cadastradas"
+    )
+
+    disciplinas = grade["disciplinas"]
+
+    # ========================================================
+    # ÁREAS PRINCIPAIS E SUAS DISCIPLINAS
+    # ========================================================
+
+    for disciplina, dados in disciplinas.items():
+
+        # Separador antes da área principal
+        linhas.append("")
+        linhas.append("━━━━━━━━━━━━━━━━━━━━")
+        linhas.append("")
+
+        # Área principal
+        linhas.append(
+            f"📚 <b>{escape(disciplina.upper())}</b> "
+            f"({dados['total']})"
+        )
+
+        # Separador depois da área principal
+        linhas.append("")
+        linhas.append("━━━━━━━━━━━━━━━━━━━━")
+
+        # ====================================================
+        # DISCIPLINAS
+        # ====================================================
+
+        for topico, dados_topico in dados["topicos"].items():
+
+            linhas.append("")
+
+            # Nome da disciplina
+            linhas.append(
+                f"📁 <b>{escape(topico)}</b> "
+                f"({dados_topico['total']})"
+            )
+
+            # =================================================
+            # ASSUNTOS
+            # =================================================
+
+            for assunto, quantidade in dados_topico["assuntos"].items():
+
+                linhas.append(
+                    f"🔹 {escape(assunto)}: "
+                    f"[<code>{quantidade}</code>]"
+                )
+
+    # ========================================================
+    # LEGENDA
+    # ========================================================
+
+    linhas.append("")
+    linhas.append("━━━━━━━━━━━━━━━━━━━━")
+    linhas.append("")
+
+    linhas.append("<b>ℹ️ LEGENDA</b>")
+    linhas.append("📚 Área principal")
+    linhas.append("📁 Disciplina")
+    linhas.append("🔹 Assunto específico")
+    linhas.append("[<code>40</code>] Quantidade de questões")
+
+    return "\n".join(linhas)
+
+
+
+
+# ============================================================
+# DIVIDIR GRADE EM MENSAGENS
+# ============================================================
+
+def dividir_mensagem(texto, limite=3500):
+
+    linhas = texto.split("\n")
+    mensagens = []
+    mensagem_atual = ""
+
+    for linha in linhas:
+
+        nova_mensagem = (
+            mensagem_atual + "\n" + linha
+            if mensagem_atual
+            else linha
+        )
+
+        if len(nova_mensagem) > limite:
+
+            if mensagem_atual:
+                mensagens.append(mensagem_atual)
+
+            mensagem_atual = linha
+
+        else:
+            mensagem_atual = nova_mensagem
+
+    if mensagem_atual:
+        mensagens.append(mensagem_atual)
+
+    return mensagens
+
+
+
+# ============================================================
 # /START
 # ============================================================
 
@@ -125,10 +280,9 @@ async def iniciar(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Olá, {usuario_logado['nome']}! "
             f"Seja bem-vindo de volta. 👋\n\n"
             "📚 Escolha a área:",
-            reply_markup=montar_teclado(
-                disciplinas,
-                "disciplina"
-            )
+            reply_markup=montar_teclado_areas(
+    disciplinas
+)
         )
 
         return ConversationHandler.END
@@ -365,10 +519,9 @@ async def receber_senha(
 
     await update.message.reply_text(
         "📚 Escolha a área:",
-        reply_markup=montar_teclado(
-            disciplinas,
-            "disciplina"
-        )
+        reply_markup=montar_teclado_areas(
+    disciplinas
+)
     )
 
     return ConversationHandler.END
@@ -831,5 +984,83 @@ async def voltar_inicio(
     await consulta.message.reply_text(
         f"👋 {nome}\n\n"
         "📚 Escolha a área:",
-        reply_markup=montar_teclado(disciplinas,"disciplina")
+        reply_markup=montar_teclado_areas(
+    disciplinas
+)
     )
+
+
+
+# ============================================================
+# VISUALIZAR GRADE DE QUESTÕES
+# ============================================================
+
+async def visualizar_grade_questoes(update, context):
+
+    consulta = update.callback_query
+
+    await consulta.answer()
+
+    # Recupera o usuário logado.
+    usuario = context.user_data.get("usuario", {})
+    login_user = usuario.get("login")
+
+    if not login_user:
+
+        await consulta.message.reply_text(
+            "⚠️ Não foi possível identificar "
+            "seu usuário. Faça login novamente."
+        )
+
+        return
+
+    # Consulta a grade individual no MongoDB.
+    grade = repositorio.obter_grade_questoes(
+        login_user
+    )
+
+    if not grade:
+
+        await consulta.message.reply_text(
+            "📋 Sua grade ainda não possui "
+            "questões disponíveis.",
+            reply_markup=InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton(
+                        "⬅️ Voltar ao início",
+                        callback_data="inicio"
+                    )
+                ]
+            ])
+        )
+
+        return
+
+    # Formata a grade.
+    texto = formatar_grade_questoes(grade)
+
+    # Divide a mensagem se necessário.
+    mensagens = dividir_mensagem(texto)
+
+    # Botão para retornar ao menu.
+    teclado = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(
+                "⬅️ Voltar ao início",
+                callback_data="inicio"
+            )
+        ]
+    ])
+
+    # Envia as mensagens.
+    for indice, mensagem in enumerate(mensagens):
+
+        await consulta.message.reply_text(
+            mensagem,
+            parse_mode="HTML",
+            reply_markup=(
+                teclado
+                if indice == len(mensagens) - 1
+                else None
+            )
+        )
