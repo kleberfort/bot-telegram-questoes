@@ -24,10 +24,18 @@ colecao = banco["questoes"]
 
 # Nova coleção dos usuários
 colecao_usuarios = banco["usuarios"]
-
-# Novas coleções
 colecao_comentarios = banco["comentarios_usuarios"]
 colecao_questoes_usuarios = banco["questoes_usuarios"]
+# Nova coleção de desempenho
+colecao_desempenho = banco["desempenho_usuarios"]
+
+colecao_desempenho.create_index(
+    [
+        ("login_user", 1),
+        ("tentativa_id", 1)
+    ],
+    unique=True
+)
 
 # ============================================================
 # TESTAR CONEXÃO

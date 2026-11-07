@@ -3,8 +3,11 @@ from telegram.ext import ConversationHandler
 
 from repositorio import (
     salvar_comentario_personalizado,
-    obter_comentario_personalizado
+    obter_comentario_personalizado,
+    salvar_desempenho
 )
+
+from uuid import uuid4
 
 AGUARDANDO_COMENTARIO = 1
 
@@ -41,6 +44,11 @@ def iniciar_desempenho(context):
         "erros": 0,
         "questoes_erradas": []
     }
+
+    # Identifica esta execução do bloco para evitar registros duplicados.
+    context.user_data["tentativa_id"] = str(uuid4())
+    context.user_data["aguardando_salvamento"] = False
+    context.user_data["questionario_finalizado"] = False
 
 
 # ============================================================
@@ -130,6 +138,19 @@ def montar_comentario(
 
 
 
+
+def montar_teclado_voltar_inicio():
+    """Cria o botão para retornar ao menu principal do bot."""
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(
+                "🏠 Voltar ao Início",
+                callback_data="inicio"
+            )
+        ]
+    ])
+
+
 # ============================================================
 # EXIBIR QUESTÃO COM OU SEM IMAGEM
 # ============================================================
@@ -143,6 +164,10 @@ async def exibir_questao(mensagem, context):
     # --------------------------------------------------------
 
     if indice >= len(lista_questoes):
+        # Evita exibir a finalização novamente caso um botão antigo seja acionado.
+        if context.user_data.get("questionario_finalizado"):
+            return
+
         desempenho = context.user_data.get("desempenho", {})
 
         total = desempenho.get("total", 0)
@@ -161,8 +186,10 @@ async def exibir_questao(mensagem, context):
             f"🎯 Aproveitamento: {porcentagem:.2f}%"
         )
 
-        await mensagem.reply_text(texto)
+        # Marca a finalização antes de enviar mensagens.
+        context.user_data["questionario_finalizado"] = True
 
+        # Apresenta as questões erradas, mantendo o comportamento anterior.
         questoes_erradas = desempenho.get("questoes_erradas", [])
 
         if questoes_erradas:
@@ -187,6 +214,46 @@ async def exibir_questao(mensagem, context):
         else:
             await mensagem.reply_text(
                 "🏆 Parabéns! Você não errou nenhuma questão."
+            )
+
+        # Só oferece salvamento quando há usuário autenticado.
+        usuario = context.user_data.get("usuario", {})
+        login_user = usuario.get("login")
+
+        if login_user and total > 0:
+            context.user_data["aguardando_salvamento"] = True
+
+            teclado_salvar = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton(
+                        "✅ Sim, salvar desempenho",
+                        callback_data="desempenho:salvar"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        "❌ Não, obrigado",
+                        callback_data="desempenho:nao_salvar"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        "🏠 Voltar ao Início",
+                        callback_data="inicio"
+                    )
+                ]
+            ])
+
+            await mensagem.reply_text(
+                texto + "\n\n"
+                "📊 Deseja salvar o resultado deste bloco "
+                "no seu Painel de Desempenho?",
+                reply_markup=teclado_salvar
+            )
+        else:
+            await mensagem.reply_text(
+                texto + "\n\n"
+                "⚠️ Faça login para salvar seu desempenho no painel."
             )
 
         return
@@ -606,3 +673,95 @@ async def cancelar_edicao_comentario(update, context):
     context.user_data["aguardando_comentario_personalizado"] = False
     await update.effective_message.reply_text("Edição do comentário cancelada.")
     return ConversationHandler.END
+
+
+# ============================================================
+# SALVAR OU DESCARTAR O DESEMPENHO DO BLOCO
+# ============================================================
+
+async def confirmar_salvamento_desempenho(update, context):
+    """Salva no MongoDB o resultado do bloco concluído."""
+
+    consulta = update.callback_query
+    await consulta.answer()
+
+    # Impede que o mesmo resultado seja salvo mais de uma vez.
+    if not context.user_data.get("aguardando_salvamento"):
+        await consulta.answer(
+            "Este resultado já foi processado.",
+            show_alert=True
+        )
+        return
+
+    usuario = context.user_data.get("usuario", {})
+    login_user = usuario.get("login")
+
+    if not login_user:
+        context.user_data["aguardando_salvamento"] = False
+        await consulta.message.reply_text(
+            "⚠️ Sua sessão não foi identificada. Faça login novamente."
+        )
+        return
+
+    desempenho = context.user_data.get("desempenho", {})
+
+    try:
+        salvo = salvar_desempenho(
+            login_user=login_user,
+            tentativa_id=context.user_data.get("tentativa_id"),
+            disciplina=context.user_data.get("disciplina", "Não informada"),
+            topico=context.user_data.get("topico", "Não informado"),
+            assunto=context.user_data.get("assunto", "Geral"),
+            bloco=context.user_data.get("bloco_atual", 1),
+            total=desempenho.get("total", 0),
+            acertos=desempenho.get("acertos", 0),
+            erros=desempenho.get("erros", 0)
+        )
+
+    except Exception:
+        import logging
+        logging.exception("Erro ao salvar desempenho do bloco")
+
+        await consulta.message.reply_text(
+            "❌ Não foi possível salvar seu desempenho agora. "
+            "Tente novamente mais tarde."
+        )
+        return
+
+    if salvo:
+        context.user_data["aguardando_salvamento"] = False
+
+        await consulta.edit_message_reply_markup(reply_markup=None)
+        await consulta.message.reply_text(
+            "✅ DESEMPENHO SALVO COM SUCESSO!\n\n"
+            "Seu resultado já está registrado no Painel de Desempenho.",
+            reply_markup=montar_teclado_voltar_inicio()
+        )
+    else:
+        await consulta.message.reply_text(
+            "⚠️ Não foi possível confirmar o salvamento. "
+            "Verifique o banco de dados e tente novamente."
+        )
+
+
+async def descartar_salvamento_desempenho(update, context):
+    """Encerra a confirmação sem gravar o resultado no painel."""
+
+    consulta = update.callback_query
+    await consulta.answer()
+
+    if not context.user_data.get("aguardando_salvamento"):
+        await consulta.answer(
+            "Esta confirmação já foi processada.",
+            show_alert=True
+        )
+        return
+
+    context.user_data["aguardando_salvamento"] = False
+
+    await consulta.edit_message_reply_markup(reply_markup=None)
+    await consulta.message.reply_text(
+        "ℹ️ Resultado não salvo no Painel de Desempenho.\n\n"
+        "Você pode continuar seus estudos pelo menu inicial.",
+        reply_markup=montar_teclado_voltar_inicio()
+    )
