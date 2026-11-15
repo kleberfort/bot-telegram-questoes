@@ -349,6 +349,16 @@ def main():
     # QUESTÕES
     # ============================================================
 
+    # GERAR PDF DAS QUESTÕES ERRADAS
+    app.add_handler(
+        CallbackQueryHandler(
+            questoes.gerar_pdf_erros_callback,
+            pattern=r"^erros:pdf$"
+        ),
+        group=0
+    )
+
+    # RESPONDER QUESTÃO
     app.add_handler(
         CallbackQueryHandler(
             questoes.responder,
@@ -357,6 +367,7 @@ def main():
         group=0
     )
 
+    # PRÓXIMA QUESTÃO
     app.add_handler(
         CallbackQueryHandler(
             questoes.proxima,
