@@ -10,6 +10,7 @@ from bson import ObjectId
 
 from datetime import datetime, timezone
 from uuid import uuid4
+from copy import deepcopy
 
 
 # ============================================================
@@ -916,15 +917,18 @@ def verificar_conflito_horario(
     nova_atividade,
     atividade_id=None
 ):
-
     inicio_novo = datetime.strptime(
         nova_atividade["horario_inicio"],
         "%H:%M"
     )
 
-    fim_novo = (
+    inicio_novo_minutos = (
         inicio_novo.hour * 60
         + inicio_novo.minute
+    )
+
+    fim_novo = (
+        inicio_novo_minutos
         + int(nova_atividade["duracao_minutos"])
     )
 
@@ -933,10 +937,28 @@ def verificar_conflito_horario(
             "A atividade ultrapassa o horário de 23:59."
         )
 
+    def formatar_horario(minutos):
+        horas = minutos // 60
+        minutos_restantes = minutos % 60
+        return f"{horas:02d}:{minutos_restantes:02d}"
+
+    def identificar_atividade(atividade):
+        if atividade.get("tipo") == "pausa":
+            return atividade.get("descricao", "Pausa")
+
+        return (
+            atividade.get("assunto")
+            or atividade.get("disciplina")
+            or "Atividade de questões"
+        )
+
     for atividade in atividades:
 
-        # Ignora a própria atividade durante uma edição.
-        if atividade.get("atividade_id") == atividade_id:
+        # Durante a edição, ignora a própria atividade.
+        if (
+            atividade_id
+            and atividade.get("atividade_id") == atividade_id
+        ):
             continue
 
         inicio_existente = datetime.strptime(
@@ -954,13 +976,32 @@ def verificar_conflito_horario(
             + int(atividade["duracao_minutos"])
         )
 
-        if (
-            inicio_novo.hour * 60 + inicio_novo.minute
-            < fim_existente
+        existe_sobreposicao = (
+            inicio_novo_minutos < fim_existente
             and fim_novo > inicio_existente_minutos
-        ):
+        )
+
+        if existe_sobreposicao:
+            nome = identificar_atividade(atividade)
+
+            horario_existente = (
+                f"{formatar_horario(inicio_existente_minutos)} "
+                f"às {formatar_horario(fim_existente)}"
+            )
+
+            horario_novo = (
+                f"{formatar_horario(inicio_novo_minutos)} "
+                f"às {formatar_horario(fim_novo)}"
+            )
+
             raise ValueError(
-                "Já existe uma atividade ou pausa nesse horário."
+                "⚠️ CONFLITO DE HORÁRIO!\n\n"
+                f"A atividade que você está tentando cadastrar "
+                f"ocupa o horário das {horario_novo}.\n\n"
+                f"Esse intervalo coincide com:\n"
+                f"📌 {nome}\n"
+                f"🕒 {horario_existente}\n\n"
+                "Escolha outro horário ou ajuste a duração."
             )
 
     return True
@@ -990,6 +1031,177 @@ def garantir_cronograma(login_user, semana_inicio):
         },
         upsert=True
     )
+
+
+# ============================================================
+# COPIAR CRONOGRAMA DA SEMANA ANTERIOR
+# ============================================================
+
+def copiar_cronograma_semana_anterior(
+    login_user,
+    semana_destino,
+    semana_origem
+):
+
+    if not login_user:
+        raise ValueError("Usuário inválido.")
+
+    if not validar_semana_inicio(semana_destino):
+        raise ValueError("Data da semana de destino inválida.")
+
+    if not validar_semana_inicio(semana_origem):
+        raise ValueError("Data da semana de origem inválida.")
+
+    # Verifica se a semana de destino já existe.
+    destino_existente = colecao_cronogramas.find_one({
+        "login_user": login_user,
+        "semana_inicio": semana_destino
+    })
+
+    if destino_existente:
+        return {
+            "criado": False,
+            "ja_existia": True,
+            "mensagem": "A semana de destino já possui um cronograma."
+        }
+
+    # Busca o cronograma da semana anterior.
+    origem = colecao_cronogramas.find_one({
+        "login_user": login_user,
+        "semana_inicio": semana_origem
+    })
+
+    # Se não existir cronograma anterior, cria uma semana vazia.
+    if origem:
+        dias = deepcopy(
+            origem.get("dias", criar_dias_cronograma())
+        )
+    else:
+        dias = criar_dias_cronograma()
+
+    # Garante que os sete dias estejam disponíveis.
+    for dia in DIAS_SEMANA:
+
+        if dia not in dias:
+            dias[dia] = {"atividades": []}
+
+        dias[dia].setdefault("atividades", [])
+
+        # Gera novos identificadores para as atividades.
+        for atividade in dias[dia]["atividades"]:
+            atividade["atividade_id"] = str(uuid4())
+
+    # Monta o novo documento.
+    novo_cronograma = {
+        "login_user": login_user,
+        "semana_inicio": semana_destino,
+        "dias": dias,
+        "data_criacao": datetime.now(timezone.utc),
+        "data_atualizacao": datetime.now(timezone.utc),
+        "copiado_de": semana_origem
+    }
+
+    # Insere somente se a semana ainda não existir.
+    resultado = colecao_cronogramas.update_one(
+        {
+            "login_user": login_user,
+            "semana_inicio": semana_destino
+        },
+        {
+            "$setOnInsert": novo_cronograma
+        },
+        upsert=True
+    )
+
+    if resultado.upserted_id:
+
+        return {
+            "criado": True,
+            "ja_existia": False,
+            "mensagem": "Cronograma copiado com sucesso."
+        }
+
+    return {
+        "criado": False,
+        "ja_existia": True,
+        "mensagem": "A semana de destino já possui um cronograma."
+    }
+
+
+# ============================================================
+# SUBSTITUIR SEMANA PELO CRONOGRAMA DA SEMANA ANTERIOR
+# ============================================================
+
+def substituir_cronograma_por_semana_anterior(
+    login_user,
+    semana_destino,
+    semana_origem
+):
+
+    if not login_user:
+        raise ValueError("Usuário inválido.")
+
+    if not validar_semana_inicio(semana_destino):
+        raise ValueError("Data da semana de destino inválida.")
+
+    if not validar_semana_inicio(semana_origem):
+        raise ValueError("Data da semana de origem inválida.")
+
+    if semana_destino == semana_origem:
+        raise ValueError("As semanas de origem e destino devem ser diferentes.")
+
+    # Busca o cronograma da semana anterior.
+    origem = colecao_cronogramas.find_one({
+        "login_user": login_user,
+        "semana_inicio": semana_origem
+    })
+
+    # Se não houver semana anterior, utiliza uma semana vazia.
+    if origem:
+        dias = deepcopy(
+            origem.get("dias", criar_dias_cronograma())
+        )
+    else:
+        dias = criar_dias_cronograma()
+
+    # Garante os sete dias e gera novos IDs.
+    for dia in DIAS_SEMANA:
+
+        if dia not in dias:
+            dias[dia] = {"atividades": []}
+
+        dias[dia].setdefault("atividades", [])
+
+        for atividade in dias[dia]["atividades"]:
+            atividade["atividade_id"] = str(uuid4())
+
+    agora = datetime.now(timezone.utc)
+
+    # Substitui as atividades da semana de destino.
+    resultado = colecao_cronogramas.update_one(
+        {
+            "login_user": login_user,
+            "semana_inicio": semana_destino
+        },
+        {
+            "$set": {
+                "dias": dias,
+                "copiado_de": semana_origem,
+                "data_atualizacao": agora
+            },
+            "$setOnInsert": {
+                "login_user": login_user,
+                "semana_inicio": semana_destino,
+                "data_criacao": agora
+            }
+        },
+        upsert=True
+    )
+
+    return {
+        "sucesso": True,
+        "mensagem": "Cronograma substituído com sucesso."
+    }
 
 
 # ============================================================

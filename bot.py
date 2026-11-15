@@ -102,7 +102,6 @@ def main():
                 "cancelar",
                 questoes.cancelar_edicao_comentario
             ),
-
             CommandHandler("start", menus.iniciar),
             CommandHandler("logout", menus.logout),
         ],
@@ -164,6 +163,40 @@ def main():
         group=0
     )
 
+    # ============================================================
+    # CONFIRMAÇÃO DE ENCERRAMENTO DO BLOCO
+    # IMPORTANTE: ESTES HANDLERS DEVEM VIR ANTES DE ^bloco:
+    # ============================================================
+
+    app.add_handler(
+        CallbackQueryHandler(
+            questoes.solicitar_confirmacao_encerramento,
+            pattern=r"^bloco:confirmar_encerramento$"
+        ),
+        group=0
+    )
+
+    app.add_handler(
+        CallbackQueryHandler(
+            questoes.confirmar_encerramento_bloco,
+            pattern=r"^bloco:encerrar_confirmado$"
+        ),
+        group=0
+    )
+
+    app.add_handler(
+        CallbackQueryHandler(
+            questoes.cancelar_encerramento_bloco,
+            pattern=r"^bloco:continuar$"
+        ),
+        group=0
+    )
+
+    # ============================================================
+    # SELEÇÃO DE BLOCO DE QUESTÕES
+    # Este handler genérico deve ficar depois dos anteriores.
+    # ============================================================
+
     app.add_handler(
         CallbackQueryHandler(
             menus.selecionar_bloco,
@@ -184,11 +217,10 @@ def main():
         group=0
     )
 
-        # ============================================================
+    # ============================================================
     # CRONOGRAMA SEMANAL
     # ============================================================
 
-    # Abrir o cronograma pelo menu principal
     app.add_handler(
         CallbackQueryHandler(
             cronograma.abrir_cronograma,
@@ -197,7 +229,6 @@ def main():
         group=0
     )
 
-    # Processar as opções internas do cronograma
     app.add_handler(
         CallbackQueryHandler(
             cronograma.processar_callback,
@@ -210,7 +241,6 @@ def main():
     # PAINEL DE DESEMPENHO
     # ============================================================
 
-    # 1. Abrir o painel de desempenho
     app.add_handler(
         CallbackQueryHandler(
             menus.abrir_painel_desempenho,
@@ -219,7 +249,6 @@ def main():
         group=0
     )
 
-    # 2. Selecionar disciplina para consultar desempenho
     app.add_handler(
         CallbackQueryHandler(
             menus.selecionar_disciplina_desempenho,
@@ -228,7 +257,6 @@ def main():
         group=0
     )
 
-    # 3. Voltar para seleção de disciplinas do painel
     app.add_handler(
         CallbackQueryHandler(
             menus.voltar_disciplinas_painel,
@@ -237,83 +265,85 @@ def main():
         group=0
     )
 
-    # Salvar desempenho do bloco
-    app.add_handler(
-    CallbackQueryHandler(
-        questoes.confirmar_salvamento_desempenho,
-        pattern=r"^desempenho:salvar$"
-    ),
-    group=0
-)
+    # ============================================================
+    # SALVAR OU DESCARTAR DESEMPENHO
+    # ============================================================
 
-    # Não salvar desempenho do bloco
     app.add_handler(
-    CallbackQueryHandler(
-        questoes.descartar_salvamento_desempenho,
-        pattern=r"^desempenho:nao_salvar$"
-    ),
-    group=0
-)
+        CallbackQueryHandler(
+            questoes.confirmar_salvamento_desempenho,
+            pattern=r"^desempenho:salvar$"
+        ),
+        group=0
+    )
+
+    app.add_handler(
+        CallbackQueryHandler(
+            questoes.descartar_salvamento_desempenho,
+            pattern=r"^desempenho:nao_salvar$"
+        ),
+        group=0
+    )
 
     # ============================================================
-# GERENCIAMENTO DO HISTÓRICO DE DESEMPENHO
-# ============================================================
+    # GERENCIAMENTO DO HISTÓRICO DE DESEMPENHO
+    # ============================================================
 
     app.add_handler(
-    CallbackQueryHandler(
-        menus.abrir_menu_exclusao_historico,
-        pattern=r"^painel_exclusao_menu$"
-    ),
-    group=0
-)
+        CallbackQueryHandler(
+            menus.abrir_menu_exclusao_historico,
+            pattern=r"^painel_exclusao_menu$"
+        ),
+        group=0
+    )
 
     app.add_handler(
-    CallbackQueryHandler(
-        menus.selecionar_nivel_exclusao,
-        pattern=r"^excluir_hist:"
-    ),
-    group=0
-)
+        CallbackQueryHandler(
+            menus.selecionar_nivel_exclusao,
+            pattern=r"^excluir_hist:"
+        ),
+        group=0
+    )
 
     app.add_handler(
-    CallbackQueryHandler(
-        menus.selecionar_topico_exclusao,
-        pattern=r"^excluir_topico:"
-    ),
-    group=0
-)
+        CallbackQueryHandler(
+            menus.selecionar_topico_exclusao,
+            pattern=r"^excluir_topico:"
+        ),
+        group=0
+    )
 
     app.add_handler(
-    CallbackQueryHandler(
-        menus.selecionar_topico_assunto_exclusao,
-        pattern=r"^excluir_assunto_topico:"
-    ),
-    group=0
-)
+        CallbackQueryHandler(
+            menus.selecionar_topico_assunto_exclusao,
+            pattern=r"^excluir_assunto_topico:"
+        ),
+        group=0
+    )
 
     app.add_handler(
-    CallbackQueryHandler(
-        menus.selecionar_assunto_exclusao,
-        pattern=r"^excluir_assunto:"
-    ),
-    group=0
-)
+        CallbackQueryHandler(
+            menus.selecionar_assunto_exclusao,
+            pattern=r"^excluir_assunto:"
+        ),
+        group=0
+    )
 
     app.add_handler(
-    CallbackQueryHandler(
-        menus.confirmar_exclusao_desempenho,
-        pattern=r"^confirmar_exclusao_desempenho$"
-    ),
-    group=0
-)
+        CallbackQueryHandler(
+            menus.confirmar_exclusao_desempenho,
+            pattern=r"^confirmar_exclusao_desempenho$"
+        ),
+        group=0
+    )
 
     app.add_handler(
-    CallbackQueryHandler(
-        menus.cancelar_exclusao_desempenho,
-        pattern=r"^painel_exclusao_cancelar$"
-    ),
-    group=0
-)
+        CallbackQueryHandler(
+            menus.cancelar_exclusao_desempenho,
+            pattern=r"^painel_exclusao_cancelar$"
+        ),
+        group=0
+    )
 
     # ============================================================
     # QUESTÕES

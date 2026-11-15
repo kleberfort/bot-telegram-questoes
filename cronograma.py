@@ -1,5 +1,7 @@
+
 from datetime import date, timedelta
 
+from opentelemetry import context
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 import repositorio
@@ -167,7 +169,6 @@ async def mostrar_semana(consulta, context):
 
     for dia, nome in DIAS.items():
         atividades = cronograma["dias"][dia]["atividades"]
-
         quantidade = len(atividades)
 
         botoes.append([
@@ -181,6 +182,13 @@ async def mostrar_semana(consulta, context):
         InlineKeyboardButton(
             "✏️ Alterar cronograma",
             callback_data="crono:alterar"
+        )
+    ])
+
+    botoes.append([
+        InlineKeyboardButton(
+            "🔁 Repetir semana anterior",
+            callback_data="crono:repetir"
         )
     ])
 
@@ -247,7 +255,13 @@ async def mostrar_dias_edicao(consulta):
 # EXIBIR ATIVIDADES DE UM DIA
 # ============================================================
 
-async def mostrar_dia(consulta, context, dia):
+async def mostrar_dia(
+    consulta,
+    context,
+    dia,
+    chat_id=None,
+    message_id=None
+):
     cronograma = obter_cronograma_usuario(context)
 
     if not cronograma or dia not in DIAS:
@@ -278,6 +292,7 @@ async def mostrar_dia(consulta, context, dia):
 
     if not atividades:
         linhas.append("Nenhuma atividade cadastrada neste dia.")
+
     else:
         linhas.append("📚 ATIVIDADES PROGRAMADAS")
         linhas.append("")
@@ -352,11 +367,24 @@ async def mostrar_dia(consulta, context, dia):
         )
     ])
 
-    await editar_mensagem(
-        consulta,
-        "\n".join(linhas),
-        InlineKeyboardMarkup(botoes)
-    )
+    texto = "\n".join(linhas)
+    teclado = InlineKeyboardMarkup(botoes)
+
+    # Atualiza a mensagem original da lista do dia.
+    if chat_id and message_id:
+        await context.bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=message_id,
+            text=texto,
+            reply_markup=teclado
+        )
+
+    else:
+        await editar_mensagem(
+            consulta,
+            texto,
+            teclado
+        )
 
 
 # ============================================================
@@ -364,10 +392,13 @@ async def mostrar_dia(consulta, context, dia):
 # ============================================================
 
 async def iniciar_atividade(consulta, context, dia):
+
     context.user_data["crono_wizard"] = {
         "dia": dia,
         "semana_inicio": context.user_data.get("cronograma_semana"),
-        "atividade_id": None
+        "atividade_id": None,
+        "lista_chat_id": consulta.message.chat_id,
+        "lista_message_id": consulta.message.message_id
     }
 
     teclado = InlineKeyboardMarkup([
@@ -391,11 +422,10 @@ async def iniciar_atividade(consulta, context, dia):
         ]
     ])
 
-    await editar_mensagem(
-        consulta,
+    await consulta.message.reply_text(
         "➕ NOVA ATIVIDADE\n\n"
         "O que deseja adicionar ao seu cronograma?",
-        teclado
+        reply_markup=teclado
     )
 
 
@@ -550,11 +580,21 @@ async def mostrar_assuntos(consulta, context):
 # ============================================================
 
 async def mostrar_horarios(consulta, context):
+    wizard = context.user_data.get("crono_wizard")
+
+    if not wizard:
+        await consulta.message.reply_text(
+            "⚠️ Não foi possível recuperar os dados da atividade. "
+            "Inicie o cadastro novamente."
+        )
+        return
+
     botoes = []
     linha = []
 
     for hora in range(6, 23):
         for minuto in [0, 30]:
+
             if hora == 22 and minuto == 30:
                 continue
 
@@ -577,7 +617,7 @@ async def mostrar_horarios(consulta, context):
     botoes.append([
         InlineKeyboardButton(
             "⬅️ Cancelar",
-            callback_data=f"crono:dia:{context.user_data['crono_wizard']['dia']}"
+            callback_data=f"crono:dia:{wizard['dia']}"
         )
     ])
 
@@ -706,9 +746,9 @@ async def salvar_atividade(consulta, context):
     wizard = context.user_data.get("crono_wizard")
 
     if not wizard:
-        await consulta.answer(
-            "Não foi possível recuperar os dados da atividade.",
-            show_alert=True
+        await consulta.message.reply_text(
+            "⚠️ Não foi possível recuperar os dados da atividade. "
+            "Inicie o cadastro novamente."
         )
         return
 
@@ -765,15 +805,63 @@ async def salvar_atividade(consulta, context):
                 consulta,
                 "⚠️ Não foi possível salvar a atividade.\n\n"
                 "Volte ao dia escolhido e tente novamente.",
-                teclado_voltar_inicio()
+                InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton(
+                            "⬅️ Voltar ao dia",
+                            callback_data=f"crono:dia:{dia}"
+                        )
+                    ]
+                ])
             )
             return
 
     except ValueError as erro:
-        await consulta.answer(
-            str(erro),
-            show_alert=True
-        )
+        mensagem_erro = str(erro)
+
+        # Se o erro for um conflito de horário,
+        # permite escolher outro horário sem reiniciar o cadastro.
+        if "CONFLITO DE HORÁRIO" in mensagem_erro.upper():
+
+            teclado = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton(
+                        "🕒 Escolher outro horário",
+                        callback_data="crono:refazer_horario"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        "⬅️ Voltar ao dia",
+                        callback_data=f"crono:dia:{dia}"
+                    )
+                ]
+            ])
+
+            await editar_mensagem(
+                consulta,
+                mensagem_erro + "\n\n"
+                "Você pode escolher outro horário ou voltar ao dia.",
+                teclado
+            )
+
+        else:
+            # Outros erros de validação não devem oferecer
+            # uma opção de horário que talvez não resolva o problema.
+            await editar_mensagem(
+                consulta,
+                f"⚠️ NÃO FOI POSSÍVEL SALVAR A ATIVIDADE\n\n"
+                f"{mensagem_erro}",
+                InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton(
+                            "⬅️ Voltar ao dia",
+                            callback_data=f"crono:dia:{dia}"
+                        )
+                    ]
+                ])
+            )
+
         return
 
     except Exception:
@@ -784,12 +872,32 @@ async def salvar_atividade(consulta, context):
             consulta,
             "❌ Ocorreu um erro ao salvar sua atividade.\n\n"
             "Tente novamente.",
-            teclado_voltar_inicio()
+            InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton(
+                        "⬅️ Voltar ao dia",
+                        callback_data=f"crono:dia:{dia}"
+                    )
+                ]
+            ])
         )
         return
 
+    # Guarda os dados da tela original antes de limpar o cadastro.
+    wizard_concluido = wizard.copy()
+
     context.user_data.pop("crono_wizard", None)
 
+    # Atualiza a lista original de atividades.
+    await mostrar_dia(
+        consulta,
+        context,
+        dia,
+        wizard_concluido.get("lista_chat_id"),
+        wizard_concluido.get("lista_message_id")
+    )
+
+    # Informa o resultado na mensagem separada do cadastro.
     await editar_mensagem(
         consulta,
         "✅ ATIVIDADE SALVA!\n\n"
@@ -823,6 +931,8 @@ async def salvar_atividade(consulta, context):
 
 async def processar_callback(update, context):
     consulta = update.callback_query
+
+    # Responde ao callback uma única vez.
     await consulta.answer()
 
     dados = consulta.data.split(":")
@@ -833,20 +943,162 @@ async def processar_callback(update, context):
     acao = dados[1]
 
     # --------------------------------------------------------
+    # REFAZER ESCOLHA DE HORÁRIO
+    # --------------------------------------------------------
+
+    if acao == "refazer_horario":
+        wizard = context.user_data.get("crono_wizard")
+
+        if not wizard:
+            await consulta.message.reply_text(
+                "⚠️ Não foi possível recuperar os dados da atividade. "
+                "Inicie o cadastro novamente."
+            )
+            return
+
+        await mostrar_horarios(consulta, context)
+        return
+
+    # --------------------------------------------------------
+    # REPETIR SEMANA ANTERIOR — PEDIR CONFIRMAÇÃO
+    # --------------------------------------------------------
+
+    if acao == "repetir":
+
+        semana_destino = context.user_data.get("cronograma_semana")
+
+        if not semana_destino:
+            return
+
+        semana_origem = (
+            date.fromisoformat(semana_destino) - timedelta(days=7)
+        ).isoformat()
+
+        teclado = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton(
+                    "✅ Sim, substituir",
+                    callback_data=(
+                        f"crono:confirmar_repetir:"
+                        f"{semana_destino}:{semana_origem}"
+                    )
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "❌ Não, cancelar",
+                    callback_data="crono:cancelar_repetir"
+                )
+            ]
+        ])
+
+        await editar_mensagem(
+            consulta,
+            "⚠️ CONFIRMAR REPETIÇÃO DA SEMANA\n\n"
+            f"Semana de origem: {obter_periodo_semana(semana_origem)}\n"
+            f"Semana de destino: {obter_periodo_semana(semana_destino)}\n\n"
+            "As atividades cadastradas na semana de destino "
+            "serão substituídas pelas atividades da semana anterior.\n\n"
+            "Deseja continuar?",
+            teclado
+        )
+        return
+
+    # --------------------------------------------------------
+    # CONFIRMAR SUBSTITUIÇÃO
+    # --------------------------------------------------------
+
+    if acao == "confirmar_repetir":
+
+        semana_destino = dados[2]
+        semana_origem = dados[3]
+
+        login_user = obter_login(context)
+
+        try:
+            repositorio.substituir_cronograma_por_semana_anterior(
+                login_user,
+                semana_destino,
+                semana_origem
+            )
+
+            context.user_data["cronograma_semana"] = semana_destino
+
+            await consulta.message.reply_text(
+                "✅ Cronograma atualizado com as atividades da semana anterior."
+            )
+
+            await mostrar_semana(consulta, context)
+
+        except Exception:
+            import logging
+            logging.exception("Erro ao repetir cronograma semanal")
+
+            await consulta.message.reply_text(
+                "❌ Não foi possível repetir o cronograma. "
+                "Tente novamente."
+            )
+
+        return
+
+    # --------------------------------------------------------
+    # CANCELAR REPETIÇÃO
+    # --------------------------------------------------------
+
+    if acao == "cancelar_repetir":
+        await mostrar_semana(consulta, context)
+        return
+
+    # --------------------------------------------------------
     # ESCOLHER SEMANA
     # --------------------------------------------------------
 
     if acao == "semana":
+
         semana_inicio = dados[2]
+
+        semana_anterior = (
+            date.fromisoformat(semana_inicio) - timedelta(days=7)
+        ).isoformat()
+
+        login_user = obter_login(context)
+
+        try:
+            resultado = repositorio.copiar_cronograma_semana_anterior(
+                login_user,
+                semana_inicio,
+                semana_anterior
+            )
+
+            context.user_data["cronograma_copiado"] = resultado["criado"]
+
+        except Exception:
+            import logging
+            logging.exception(
+                "Erro ao preparar cronograma da semana"
+            )
+
+            await consulta.message.reply_text(
+                "❌ Não foi possível preparar o cronograma desta semana."
+            )
+            return
 
         context.user_data["cronograma_semana"] = semana_inicio
 
         await mostrar_semana(consulta, context)
         return
 
+    # --------------------------------------------------------
+    # ESCOLHER OUTRA SEMANA
+    # --------------------------------------------------------
+
     if acao == "semanas":
         await abrir_cronograma_sem_callback(consulta, context)
         return
+
+    # --------------------------------------------------------
+    # VOLTAR À SEMANA
+    # --------------------------------------------------------
 
     if acao == "voltar_semana":
         await mostrar_semana(consulta, context)
@@ -866,7 +1118,12 @@ async def processar_callback(update, context):
 
     if acao == "dia":
         dia = dados[2]
-        await mostrar_dia(consulta, context, dia)
+
+        await mostrar_dia(
+            consulta,
+            context,
+            dia
+        )
         return
 
     # --------------------------------------------------------
@@ -875,7 +1132,12 @@ async def processar_callback(update, context):
 
     if acao == "add":
         dia = dados[2]
-        await iniciar_atividade(consulta, context, dia)
+
+        await iniciar_atividade(
+            consulta,
+            context,
+            dia
+        )
         return
 
     # --------------------------------------------------------
@@ -894,6 +1156,7 @@ async def processar_callback(update, context):
 
         if tipo == "questoes":
             await mostrar_disciplinas(consulta, context)
+
         elif tipo == "pausa":
             await mostrar_horarios(consulta, context)
 
@@ -912,7 +1175,7 @@ async def processar_callback(update, context):
         indice = int(dados[2])
         disciplinas = wizard.get("disciplinas", [])
 
-        if indice >= len(disciplinas):
+        if indice < 0 or indice >= len(disciplinas):
             return
 
         wizard["disciplina"] = disciplinas[indice]
@@ -933,7 +1196,7 @@ async def processar_callback(update, context):
         indice = int(dados[2])
         topicos = wizard.get("topicos", [])
 
-        if indice >= len(topicos):
+        if indice < 0 or indice >= len(topicos):
             return
 
         wizard["topico"] = topicos[indice]
@@ -954,7 +1217,7 @@ async def processar_callback(update, context):
         indice = int(dados[2])
         assuntos = wizard.get("assuntos", [])
 
-        if indice >= len(assuntos):
+        if indice < 0 or indice >= len(assuntos):
             return
 
         wizard["assunto"] = assuntos[indice]
@@ -995,6 +1258,7 @@ async def processar_callback(update, context):
 
         if wizard["tipo"] == "pausa":
             await salvar_atividade(consulta, context)
+
         else:
             await mostrar_tipos_meta(consulta, context)
 
@@ -1014,6 +1278,7 @@ async def processar_callback(update, context):
 
         if dados[2] == "questoes":
             await mostrar_metas_questoes(consulta)
+
         elif dados[2] == "tempo":
             await mostrar_metas_tempo(consulta)
 
@@ -1083,16 +1348,18 @@ async def processar_callback(update, context):
         )
 
         if not atividade:
-            await consulta.answer(
-                "Essa atividade não foi encontrada.",
-                show_alert=True
+            await consulta.message.reply_text(
+                "⚠️ Essa atividade não foi encontrada. "
+                "Atualize a visualização do dia e tente novamente."
             )
             return
 
         context.user_data["crono_wizard"] = {
             "dia": dia,
             "semana_inicio": context.user_data["cronograma_semana"],
-            "atividade_id": atividade_id
+            "atividade_id": atividade_id,
+            "lista_chat_id": consulta.message.chat_id,
+            "lista_message_id": consulta.message.message_id
         }
 
         teclado = InlineKeyboardMarkup([
@@ -1116,13 +1383,12 @@ async def processar_callback(update, context):
             ]
         ])
 
-        await editar_mensagem(
-            consulta,
+        await consulta.message.reply_text(
             "✏️ EDITAR ATIVIDADE\n\n"
             "Você poderá redefinir o tipo, o conteúdo, "
             "o horário, a duração e a meta.\n\n"
             "Escolha o tipo da atividade:",
-            teclado
+            reply_markup=teclado
         )
         return
 
@@ -1164,19 +1430,19 @@ async def processar_callback(update, context):
                         ]
                     ])
                 )
+
             else:
-                await consulta.answer(
-                    "Não foi possível excluir essa atividade.",
-                    show_alert=True
+                await consulta.message.reply_text(
+                    "⚠️ Não foi possível excluir essa atividade."
                 )
 
         except Exception:
             import logging
             logging.exception("Erro ao excluir atividade do cronograma")
 
-            await consulta.answer(
-                "Ocorreu um erro ao excluir a atividade.",
-                show_alert=True
+            await consulta.message.reply_text(
+                "❌ Ocorreu um erro ao excluir a atividade. "
+                "Tente novamente."
             )
 
         return

@@ -85,7 +85,7 @@ def montar_teclado_areas(disciplinas):
         -1,
         [
             InlineKeyboardButton(
-                "📊 Meu Painel de Desempenho",
+                "📊 Painel de Desempenho",
                 callback_data="painel_desempenho"
             )
         ]
@@ -96,7 +96,7 @@ def montar_teclado_areas(disciplinas):
         -1,
         [
             InlineKeyboardButton(
-                "📅 Meu Cronograma Semanal",
+                "📅 Cronograma Semanal",
                 callback_data="abrir_cronograma"
             )
         ]

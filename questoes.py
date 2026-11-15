@@ -152,6 +152,102 @@ def montar_teclado_voltar_inicio():
 
 
 # ============================================================
+# CONFIRMAÇÃO DE ENCERRAMENTO DO BLOCO
+# ============================================================
+
+def montar_teclado_confirmar_encerramento():
+    """Exibe as opções para confirmar ou cancelar o encerramento."""
+
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(
+                "✅ Sim, encerrar bloco",
+                callback_data="bloco:encerrar_confirmado"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "❌ Não, continuar respondendo",
+                callback_data="bloco:continuar"
+            )
+        ]
+    ])
+
+
+async def solicitar_confirmacao_encerramento(update, context):
+    """Solicita confirmação antes de encerrar um bloco em andamento."""
+
+    consulta = update.callback_query
+    await consulta.answer()
+
+    if context.user_data.get("questionario_finalizado"):
+        await consulta.message.reply_text(
+            "Este bloco já foi concluído.",
+            reply_markup=montar_teclado_voltar_inicio()
+        )
+        return
+
+    await consulta.message.reply_text(
+        "⚠️ ENCERRAR BLOCO DE QUESTÕES?\n\n"
+        "Se você encerrar agora, o bloco será interrompido "
+        "e o resultado parcial não será registrado como "
+        "um bloco concluído.\n\n"
+        "Deseja realmente sair?",
+        reply_markup=montar_teclado_confirmar_encerramento()
+    )
+
+
+async def confirmar_encerramento_bloco(update, context):
+    """Encerra a tentativa atual sem salvar desempenho parcial."""
+
+    consulta = update.callback_query
+    await consulta.answer()
+
+    # Remove somente os dados relacionados ao questionário.
+    chaves_questionario = [
+        "questoes",
+        "indice_questao",
+        "desempenho",
+        "tentativa_id",
+        "aguardando_salvamento",
+        "questionario_finalizado",
+        "respondida",
+        "questao_atual_id",
+        "questao_login_user",
+        "disciplina",
+        "topico",
+        "assunto",
+        "bloco_atual"
+    ]
+
+    for chave in chaves_questionario:
+        context.user_data.pop(chave, None)
+
+    await consulta.edit_message_reply_markup(reply_markup=None)
+
+    await consulta.message.reply_text(
+        "✅ BLOCO ENCERRADO!\n\n"
+        "Seu resultado parcial não foi salvo como bloco concluído.\n"
+        "Você pode retornar ao menu inicial.",
+        reply_markup=montar_teclado_voltar_inicio()
+    )
+
+
+async def cancelar_encerramento_bloco(update, context):
+    """Cancela o encerramento e mantém a questão atual."""
+
+    consulta = update.callback_query
+    await consulta.answer("Você continuará respondendo.")
+
+    await consulta.edit_message_reply_markup(reply_markup=None)
+
+    await consulta.message.reply_text(
+        "▶️ Vamos continuar de onde você parou."
+    )
+
+
+
+# ============================================================
 # EXIBIR QUESTÃO COM OU SEM IMAGEM
 # ============================================================
 
@@ -501,9 +597,9 @@ async def responder(update, context):
         ],
         [
             InlineKeyboardButton(
-                "🏠 Voltar ao início",
-                callback_data="inicio"
-            )
+    "🏠 Voltar ao início",
+    callback_data="bloco:confirmar_encerramento"
+)
         ]
     ])
 
