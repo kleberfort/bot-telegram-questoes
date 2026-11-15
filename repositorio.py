@@ -2,12 +2,14 @@ from database import (
     colecao,
     colecao_comentarios,
     colecao_questoes_usuarios,
-    colecao_desempenho
+    colecao_desempenho,
+    colecao_cronogramas
 )
 
 from bson import ObjectId
 
 from datetime import datetime, timezone
+from uuid import uuid4
 
 
 # ============================================================
@@ -728,3 +730,507 @@ def excluir_historico_assunto(
     resultado = colecao_desempenho.delete_many(filtro)
 
     return resultado.deleted_count
+
+
+
+# ============================================================
+# CRONOGRAMA SEMANAL DOS USUÁRIOS
+# ============================================================
+
+DIAS_SEMANA = [
+    "segunda",
+    "terca",
+    "quarta",
+    "quinta",
+    "sexta",
+    "sabado",
+    "domingo"
+]
+
+MAX_ATIVIDADES_DIA = 6
+
+METAS_QUESTOES = [10, 20, 30, 40, 50]
+
+
+# ============================================================
+# CRIAR ESTRUTURA VAZIA DA SEMANA
+# ============================================================
+
+def criar_dias_cronograma():
+
+    return {
+        dia: {
+            "atividades": []
+        }
+        for dia in DIAS_SEMANA
+    }
+
+
+# ============================================================
+# VALIDAR DATA DA SEMANA
+# ============================================================
+
+def validar_semana_inicio(semana_inicio):
+
+    try:
+        datetime.strptime(
+            semana_inicio,
+            "%Y-%m-%d"
+        )
+
+        return True
+
+    except (TypeError, ValueError):
+
+        return False
+
+
+# ============================================================
+# OBTER CRONOGRAMA SEMANAL
+# ============================================================
+
+def obter_cronograma(login_user, semana_inicio):
+
+    if not login_user or not validar_semana_inicio(semana_inicio):
+        return None
+
+    cronograma = colecao_cronogramas.find_one({
+        "login_user": login_user,
+        "semana_inicio": semana_inicio
+    })
+
+    if not cronograma:
+
+        return {
+            "login_user": login_user,
+            "semana_inicio": semana_inicio,
+            "dias": criar_dias_cronograma()
+        }
+
+    # Garante que todos os sete dias estejam disponíveis.
+    dias_existentes = cronograma.get("dias", {})
+
+    for dia in DIAS_SEMANA:
+
+        dias_existentes.setdefault(
+            dia,
+            {"atividades": []}
+        )
+
+    cronograma["dias"] = dias_existentes
+
+    return cronograma
+
+
+# ============================================================
+# VALIDAR ATIVIDADE DO CRONOGRAMA
+# ============================================================
+
+def validar_atividade_cronograma(atividade):
+
+    if not isinstance(atividade, dict):
+        raise ValueError("Atividade inválida.")
+
+    tipo = atividade.get("tipo")
+
+    if tipo not in ["questoes", "pausa"]:
+        raise ValueError("Tipo de atividade inválido.")
+
+    horario = atividade.get("horario_inicio")
+
+    try:
+        datetime.strptime(horario, "%H:%M")
+
+    except (TypeError, ValueError):
+        raise ValueError("Horário inválido. Utilize HH:MM.")
+
+    try:
+        duracao = int(atividade.get("duracao_minutos", 0))
+
+    except (TypeError, ValueError):
+        raise ValueError("Duração inválida.")
+
+    if duracao <= 0:
+        raise ValueError("A duração deve ser maior que zero.")
+
+    if tipo == "questoes":
+
+        if not all([
+            atividade.get("disciplina"),
+            atividade.get("topico"),
+            atividade.get("assunto")
+        ]):
+            raise ValueError(
+                "Disciplina, tópico e assunto são obrigatórios."
+            )
+
+        meta_tipo = atividade.get("meta_tipo")
+
+        if meta_tipo == "questoes":
+
+            try:
+                quantidade = int(
+                    atividade.get("quantidade_questoes", 0)
+                )
+
+            except (TypeError, ValueError):
+                raise ValueError("Meta de questões inválida.")
+
+            if quantidade not in METAS_QUESTOES:
+                raise ValueError(
+                    "A meta deve ser 10, 20, 30, 40 ou 50 questões."
+                )
+
+        elif meta_tipo == "tempo":
+
+            try:
+                meta_tempo = int(
+                    atividade.get("meta_tempo_minutos", 0)
+                )
+
+            except (TypeError, ValueError):
+                raise ValueError("Meta de tempo inválida.")
+
+            if meta_tempo <= 0:
+                raise ValueError(
+                    "A meta de tempo deve ser maior que zero."
+                )
+
+        else:
+            raise ValueError("Tipo de meta inválido.")
+
+    elif tipo == "pausa":
+
+        if not atividade.get("descricao"):
+            atividade["descricao"] = "Descanso"
+
+    return True
+
+
+# ============================================================
+# VERIFICAR CONFLITO DE HORÁRIOS
+# ============================================================
+
+def verificar_conflito_horario(
+    atividades,
+    nova_atividade,
+    atividade_id=None
+):
+
+    inicio_novo = datetime.strptime(
+        nova_atividade["horario_inicio"],
+        "%H:%M"
+    )
+
+    fim_novo = (
+        inicio_novo.hour * 60
+        + inicio_novo.minute
+        + int(nova_atividade["duracao_minutos"])
+    )
+
+    if fim_novo > 24 * 60:
+        raise ValueError(
+            "A atividade ultrapassa o horário de 23:59."
+        )
+
+    for atividade in atividades:
+
+        # Ignora a própria atividade durante uma edição.
+        if atividade.get("atividade_id") == atividade_id:
+            continue
+
+        inicio_existente = datetime.strptime(
+            atividade["horario_inicio"],
+            "%H:%M"
+        )
+
+        inicio_existente_minutos = (
+            inicio_existente.hour * 60
+            + inicio_existente.minute
+        )
+
+        fim_existente = (
+            inicio_existente_minutos
+            + int(atividade["duracao_minutos"])
+        )
+
+        if (
+            inicio_novo.hour * 60 + inicio_novo.minute
+            < fim_existente
+            and fim_novo > inicio_existente_minutos
+        ):
+            raise ValueError(
+                "Já existe uma atividade ou pausa nesse horário."
+            )
+
+    return True
+
+
+# ============================================================
+# GARANTIR QUE O DOCUMENTO DA SEMANA EXISTA
+# ============================================================
+
+def garantir_cronograma(login_user, semana_inicio):
+
+    if not login_user or not validar_semana_inicio(semana_inicio):
+        raise ValueError("Usuário ou semana inválida.")
+
+    colecao_cronogramas.update_one(
+        {
+            "login_user": login_user,
+            "semana_inicio": semana_inicio
+        },
+        {
+            "$setOnInsert": {
+                "login_user": login_user,
+                "semana_inicio": semana_inicio,
+                "dias": criar_dias_cronograma(),
+                "data_criacao": datetime.now(timezone.utc)
+            }
+        },
+        upsert=True
+    )
+
+
+# ============================================================
+# ADICIONAR ATIVIDADE AO CRONOGRAMA
+# ============================================================
+
+def salvar_atividade_cronograma(
+    login_user,
+    semana_inicio,
+    dia,
+    atividade
+):
+
+    if dia not in DIAS_SEMANA:
+        raise ValueError("Dia da semana inválido.")
+
+    validar_atividade_cronograma(atividade)
+
+    garantir_cronograma(
+        login_user,
+        semana_inicio
+    )
+
+    cronograma = obter_cronograma(
+        login_user,
+        semana_inicio
+    )
+
+    atividades = cronograma["dias"][dia]["atividades"]
+
+    # Limite de seis atividades de questões.
+    if atividade["tipo"] == "questoes":
+
+        quantidade_questoes = sum(
+            1
+            for item in atividades
+            if item.get("tipo") == "questoes"
+        )
+
+        if quantidade_questoes >= MAX_ATIVIDADES_DIA:
+            raise ValueError(
+                "Este dia já possui seis atividades de questões."
+            )
+
+    # Impede conflitos entre atividades e pausas.
+    verificar_conflito_horario(
+        atividades,
+        atividade
+    )
+
+    nova_atividade = atividade.copy()
+
+    nova_atividade["atividade_id"] = str(uuid4())
+
+    resultado = colecao_cronogramas.update_one(
+        {
+            "login_user": login_user,
+            "semana_inicio": semana_inicio
+        },
+        {
+            "$push": {
+                f"dias.{dia}.atividades": nova_atividade
+            },
+            "$set": {
+                "data_atualizacao": datetime.now(timezone.utc)
+            }
+        }
+    )
+
+    return resultado.modified_count > 0
+
+
+# ============================================================
+# EDITAR ATIVIDADE DO CRONOGRAMA
+# ============================================================
+
+def editar_atividade_cronograma(
+    login_user,
+    semana_inicio,
+    dia,
+    atividade_id,
+    novos_dados
+):
+
+    if dia not in DIAS_SEMANA:
+        raise ValueError("Dia da semana inválido.")
+
+    validar_atividade_cronograma(novos_dados)
+
+    cronograma = obter_cronograma(
+        login_user,
+        semana_inicio
+    )
+
+    if not cronograma:
+        return False
+
+    atividades = cronograma["dias"][dia]["atividades"]
+
+    atividade_existente = next(
+        (
+            item for item in atividades
+            if item.get("atividade_id") == atividade_id
+        ),
+        None
+    )
+
+    if not atividade_existente:
+        return False
+
+    # Preserva o identificador original.
+    atividade_atualizada = novos_dados.copy()
+
+    atividade_atualizada["atividade_id"] = atividade_id
+
+    # Verifica o limite de seis atividades de questões.
+    quantidade_questoes = sum(
+        1
+        for item in atividades
+        if (
+            item.get("tipo") == "questoes"
+            and item.get("atividade_id") != atividade_id
+        )
+    )
+
+    if (
+        atividade_atualizada["tipo"] == "questoes"
+        and quantidade_questoes >= MAX_ATIVIDADES_DIA
+    ):
+        raise ValueError(
+            "Este dia já possui seis atividades de questões."
+        )
+
+    # Verifica conflitos, ignorando a atividade editada.
+    verificar_conflito_horario(
+        atividades,
+        atividade_atualizada,
+        atividade_id
+    )
+
+    resultado = colecao_cronogramas.update_one(
+        {
+            "login_user": login_user,
+            "semana_inicio": semana_inicio
+        },
+        {
+            "$set": {
+                f"dias.{dia}.atividades.$[atividade]":
+                    atividade_atualizada,
+
+                "data_atualizacao": datetime.now(timezone.utc)
+            }
+        },
+        array_filters=[
+            {
+                "atividade.atividade_id": atividade_id
+            }
+        ]
+    )
+
+    return resultado.modified_count > 0
+
+
+# ============================================================
+# EXCLUIR ATIVIDADE DO CRONOGRAMA
+# ============================================================
+
+def excluir_atividade_cronograma(
+    login_user,
+    semana_inicio,
+    dia,
+    atividade_id
+):
+
+    if dia not in DIAS_SEMANA:
+        return False
+
+    resultado = colecao_cronogramas.update_one(
+        {
+            "login_user": login_user,
+            "semana_inicio": semana_inicio
+        },
+        {
+            "$pull": {
+                f"dias.{dia}.atividades": {
+                    "atividade_id": atividade_id
+                }
+            },
+            "$set": {
+                "data_atualizacao": datetime.now(timezone.utc)
+            }
+        }
+    )
+
+    return resultado.modified_count > 0
+
+
+# ============================================================
+# EXCLUIR CRONOGRAMA DE UMA SEMANA
+# ============================================================
+
+def excluir_cronograma_semana(
+    login_user,
+    semana_inicio
+):
+
+    if not login_user or not validar_semana_inicio(semana_inicio):
+        return False
+
+    resultado = colecao_cronogramas.delete_one({
+        "login_user": login_user,
+        "semana_inicio": semana_inicio
+    })
+
+    return resultado.deleted_count > 0
+
+
+# ============================================================
+# LISTAR SEMANAS COM CRONOGRAMA CADASTRADO
+# ============================================================
+
+def listar_semanas_cronograma(login_user):
+
+    if not login_user:
+        return []
+
+    semanas = colecao_cronogramas.find(
+        {
+            "login_user": login_user
+        },
+        {
+            "_id": 0,
+            "semana_inicio": 1
+        }
+    ).sort(
+        "semana_inicio",
+        -1
+    )
+
+    return [
+        item["semana_inicio"]
+        for item in semanas
+        if item.get("semana_inicio")
+    ]

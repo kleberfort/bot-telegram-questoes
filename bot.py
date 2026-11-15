@@ -13,6 +13,7 @@ from database import testar_conexao
 
 import menus
 import questoes
+import cronograma
 
 
 def main():
@@ -179,6 +180,28 @@ def main():
         CallbackQueryHandler(
             menus.visualizar_grade_questoes,
             pattern=r"^grade_questoes$"
+        ),
+        group=0
+    )
+
+        # ============================================================
+    # CRONOGRAMA SEMANAL
+    # ============================================================
+
+    # Abrir o cronograma pelo menu principal
+    app.add_handler(
+        CallbackQueryHandler(
+            cronograma.abrir_cronograma,
+            pattern=r"^abrir_cronograma$"
+        ),
+        group=0
+    )
+
+    # Processar as opções internas do cronograma
+    app.add_handler(
+        CallbackQueryHandler(
+            cronograma.processar_callback,
+            pattern=r"^crono:"
         ),
         group=0
     )

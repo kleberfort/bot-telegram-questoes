@@ -91,6 +91,17 @@ def montar_teclado_areas(disciplinas):
         ]
     )
 
+        # Meu Cronograma Semanal
+    botoes.insert(
+        -1,
+        [
+            InlineKeyboardButton(
+                "📅 Meu Cronograma Semanal",
+                callback_data="abrir_cronograma"
+            )
+        ]
+    )
+
     return InlineKeyboardMarkup(botoes)
 
 
