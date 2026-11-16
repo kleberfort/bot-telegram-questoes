@@ -80,7 +80,7 @@ def montar_teclado_areas(disciplinas):
         ]
     )
 
-    # Novo botão: Painel de Desempenho
+    # Painel de Desempenho
     botoes.insert(
         -1,
         [
@@ -91,7 +91,7 @@ def montar_teclado_areas(disciplinas):
         ]
     )
 
-        # Meu Cronograma Semanal
+    # Meu Cronograma Semanal
     botoes.insert(
         -1,
         [
@@ -214,10 +214,7 @@ async def iniciar(
 
     chat_type = update.effective_chat.type
 
-    # ========================================================
-    # ACESSO PELO GRUPO
-    # ========================================================
-
+    # Acesso pelo grupo
     if chat_type in ["group", "supergroup"]:
 
         username_bot = context.bot.username
@@ -247,20 +244,14 @@ async def iniciar(
 
         return ConversationHandler.END
 
-    # ========================================================
-    # ACESSO PRIVADO
-    # ========================================================
-
+    # Acesso privado
     user_id = update.effective_user.id
 
     usuario_logado = usuarios.buscar_por_telegram(
         user_id
     )
 
-    # ========================================================
-    # USUÁRIO JÁ VINCULADO
-    # ========================================================
-
+    # Usuário já vinculado
     if usuario_logado:
 
         limpar_dados_sessao(context)
@@ -287,10 +278,7 @@ async def iniciar(
 
         return ConversationHandler.END
 
-    # ========================================================
-    # USUÁRIO NÃO VINCULADO
-    # ========================================================
-
+    # Usuário não vinculado
     await update.message.reply_text(
         "🔒 Este Telegram ainda não está vinculado "
         "a uma conta do sistema.\n\n"
@@ -533,10 +521,12 @@ async def selecionar_disciplina(
         )
 
     except (ValueError, IndexError):
+
         await consulta.answer(
             "Opção inválida.",
             show_alert=True
         )
+
         return
 
     disciplinas = context.user_data.get(
@@ -604,10 +594,12 @@ async def selecionar_topico(
         )
 
     except (ValueError, IndexError):
+
         await consulta.answer(
             "Opção inválida.",
             show_alert=True
         )
+
         return
 
     topicos = context.user_data.get(
@@ -678,10 +670,12 @@ async def selecionar_assunto(
         )
 
     except (ValueError, IndexError):
+
         await consulta.answer(
             "Opção inválida.",
             show_alert=True
         )
+
         return
 
     assuntos = context.user_data.get(
@@ -739,6 +733,7 @@ async def selecionar_assunto(
 
     botoes = []
 
+    # Cria somente os botões dos blocos.
     for bloco in range(1, quantidade_blocos + 1):
 
         inicio = (bloco - 1) * tamanho_bloco + 1
@@ -755,6 +750,16 @@ async def selecionar_assunto(
             )
         ])
 
+    # Botão único para gerar PDF.
+    # Fica fora do laço para não se repetir.
+    botoes.append([
+        InlineKeyboardButton(
+            "📄 Gerar PDF de Resolução",
+            callback_data="resolucao:menu"
+        )
+    ])
+
+    # Botão para voltar ao início.
     botoes.append([
         InlineKeyboardButton(
             "⬅️ Voltar ao início",
@@ -771,7 +776,7 @@ async def selecionar_assunto(
 
 
 # ============================================================
-# SELECIONAR BLOCO
+# SELECIONAR BLOCO PARA RESOLVER
 # ============================================================
 
 async def selecionar_bloco(
@@ -789,10 +794,12 @@ async def selecionar_bloco(
         )
 
     except (ValueError, IndexError):
+
         await consulta.answer(
             "Bloco inválido.",
             show_alert=True
         )
+
         return
 
     todas_questoes = context.user_data.get(
@@ -1298,10 +1305,7 @@ def gerar_relatorio_disciplina(
 
                 total_acertos += acertos
 
-    # ========================================================
-    # RESUMO DA DISCIPLINA
-    # ========================================================
-
+    # Resumo da disciplina
     blocos_faltando = max(
         0,
         total_blocos_previstos - total_blocos_concluidos
@@ -1389,7 +1393,9 @@ async def selecionar_disciplina_desempenho(
         return
 
     disciplina = disciplinas[indice]
+
     context.user_data["disciplina_painel_atual"] = disciplina
+
     login_user = usuario.get("login")
 
     grade = repositorio.obter_grade_questoes(
@@ -1416,25 +1422,25 @@ async def selecionar_disciplina_desempenho(
     )
 
     teclado = InlineKeyboardMarkup([
-    [
-        InlineKeyboardButton(
-            "🗑️ Gerenciar histórico",
-            callback_data="painel_exclusao_menu"
-        )
-    ],
-    [
-        InlineKeyboardButton(
-            "⬅️ Voltar para Disciplinas",
-            callback_data="painel_voltar_disciplinas"
-        )
-    ],
-    [
-        InlineKeyboardButton(
-            "🏠 Início",
-            callback_data="inicio"
-        )
-    ]
-])
+        [
+            InlineKeyboardButton(
+                "🗑️ Gerenciar histórico",
+                callback_data="painel_exclusao_menu"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "⬅️ Voltar para Disciplinas",
+                callback_data="painel_voltar_disciplinas"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "🏠 Início",
+                callback_data="inicio"
+            )
+        ]
+    ])
 
     partes = dividir_mensagem(texto)
 
@@ -1517,6 +1523,7 @@ async def voltar_disciplinas_painel(
         )
     )
 
+
 # ============================================================
 # MENU DE GERENCIAMENTO DO HISTÓRICO
 # ============================================================
@@ -1524,17 +1531,24 @@ async def voltar_disciplinas_painel(
 async def abrir_menu_exclusao_historico(update, context):
 
     consulta = update.callback_query
+
     await consulta.answer()
 
     usuario = context.user_data.get("usuario", {})
+
     login_user = usuario.get("login")
-    disciplina = context.user_data.get("disciplina_painel_atual")
+
+    disciplina = context.user_data.get(
+        "disciplina_painel_atual"
+    )
 
     if not login_user or not disciplina:
+
         await consulta.answer(
             "Sessão ou disciplina não identificada.",
             show_alert=True
         )
+
         return
 
     quantidade = repositorio.contar_historico_desempenho(
@@ -1543,6 +1557,7 @@ async def abrir_menu_exclusao_historico(update, context):
     )
 
     if quantidade == 0:
+
         await consulta.edit_message_text(
             "🗑️ GERENCIAR HISTÓRICO\n\n"
             "Não existem registros de desempenho "
@@ -1556,6 +1571,7 @@ async def abrir_menu_exclusao_historico(update, context):
                 ]
             ])
         )
+
         return
 
     teclado = InlineKeyboardMarkup([
@@ -1604,25 +1620,29 @@ async def abrir_menu_exclusao_historico(update, context):
 async def selecionar_nivel_exclusao(update, context):
 
     consulta = update.callback_query
+
     await consulta.answer()
 
     usuario = context.user_data.get("usuario", {})
+
     login_user = usuario.get("login")
-    disciplina = context.user_data.get("disciplina_painel_atual")
+
+    disciplina = context.user_data.get(
+        "disciplina_painel_atual"
+    )
 
     if not login_user or not disciplina:
+
         await consulta.answer(
             "Sessão não identificada.",
             show_alert=True
         )
+
         return
 
     nivel = consulta.data.split(":")[1]
 
-    # --------------------------------------------------------
-    # EXCLUSÃO DA DISCIPLINA
-    # --------------------------------------------------------
-
+    # Exclusão da disciplina
     if nivel == "disciplina":
 
         quantidade = repositorio.contar_historico_desempenho(
@@ -1631,9 +1651,11 @@ async def selecionar_nivel_exclusao(update, context):
         )
 
         if quantidade == 0:
+
             await consulta.edit_message_text(
                 "Não existe histórico nesta disciplina."
             )
+
             return
 
         context.user_data["exclusao_desempenho"] = {
@@ -1651,10 +1673,7 @@ async def selecionar_nivel_exclusao(update, context):
 
         return
 
-    # --------------------------------------------------------
-    # SELEÇÃO DE TÓPICO
-    # --------------------------------------------------------
-
+    # Seleção de tópico
     if nivel == "topico":
 
         topicos = repositorio.listar_topicos_desempenho(
@@ -1663,9 +1682,11 @@ async def selecionar_nivel_exclusao(update, context):
         )
 
         if not topicos:
+
             await consulta.edit_message_text(
                 "Não existem tópicos com histórico registrado."
             )
+
             return
 
         context.user_data["opcoes_exclusao"] = topicos
@@ -1673,6 +1694,7 @@ async def selecionar_nivel_exclusao(update, context):
         botoes = []
 
         for i, topico in enumerate(topicos):
+
             botoes.append([
                 InlineKeyboardButton(
                     f"📁 {topico}",
@@ -1695,10 +1717,7 @@ async def selecionar_nivel_exclusao(update, context):
 
         return
 
-    # --------------------------------------------------------
-    # SELEÇÃO DE ASSUNTO
-    # --------------------------------------------------------
-
+    # Seleção de assunto
     if nivel == "assunto":
 
         topicos = repositorio.listar_topicos_desempenho(
@@ -1707,9 +1726,11 @@ async def selecionar_nivel_exclusao(update, context):
         )
 
         if not topicos:
+
             await consulta.edit_message_text(
                 "Não existem tópicos com histórico registrado."
             )
+
             return
 
         context.user_data["opcoes_exclusao"] = topicos
@@ -1717,6 +1738,7 @@ async def selecionar_nivel_exclusao(update, context):
         botoes = []
 
         for i, topico in enumerate(topicos):
+
             botoes.append([
                 InlineKeyboardButton(
                     f"📁 {topico}",
@@ -1745,18 +1767,35 @@ async def selecionar_nivel_exclusao(update, context):
 async def selecionar_topico_exclusao(update, context):
 
     consulta = update.callback_query
+
     await consulta.answer()
 
     usuario = context.user_data.get("usuario", {})
+
     login_user = usuario.get("login")
-    disciplina = context.user_data.get("disciplina_painel_atual")
+
+    disciplina = context.user_data.get(
+        "disciplina_painel_atual"
+    )
 
     try:
+
         indice = int(consulta.data.split(":")[1])
-        topicos = context.user_data.get("opcoes_exclusao", [])
+
+        topicos = context.user_data.get(
+            "opcoes_exclusao",
+            []
+        )
+
         topico = topicos[indice]
+
     except (ValueError, IndexError):
-        await consulta.answer("Tópico inválido.", show_alert=True)
+
+        await consulta.answer(
+            "Tópico inválido.",
+            show_alert=True
+        )
+
         return
 
     quantidade = repositorio.contar_historico_desempenho(
@@ -1766,9 +1805,11 @@ async def selecionar_topico_exclusao(update, context):
     )
 
     if quantidade == 0:
+
         await consulta.edit_message_text(
             "Este tópico não possui histórico registrado."
         )
+
         return
 
     context.user_data["exclusao_desempenho"] = {
@@ -1792,18 +1833,35 @@ async def selecionar_topico_exclusao(update, context):
 async def selecionar_topico_assunto_exclusao(update, context):
 
     consulta = update.callback_query
+
     await consulta.answer()
 
     usuario = context.user_data.get("usuario", {})
+
     login_user = usuario.get("login")
-    disciplina = context.user_data.get("disciplina_painel_atual")
+
+    disciplina = context.user_data.get(
+        "disciplina_painel_atual"
+    )
 
     try:
+
         indice = int(consulta.data.split(":")[1])
-        topicos = context.user_data.get("opcoes_exclusao", [])
+
+        topicos = context.user_data.get(
+            "opcoes_exclusao",
+            []
+        )
+
         topico = topicos[indice]
+
     except (ValueError, IndexError):
-        await consulta.answer("Tópico inválido.", show_alert=True)
+
+        await consulta.answer(
+            "Tópico inválido.",
+            show_alert=True
+        )
+
         return
 
     assuntos = repositorio.listar_assuntos_desempenho(
@@ -1813,17 +1871,21 @@ async def selecionar_topico_assunto_exclusao(update, context):
     )
 
     if not assuntos:
+
         await consulta.edit_message_text(
             "Não existem assuntos com histórico neste tópico."
         )
+
         return
 
     context.user_data["topico_exclusao_atual"] = topico
+
     context.user_data["opcoes_exclusao"] = assuntos
 
     botoes = []
 
     for i, assunto in enumerate(assuntos):
+
         botoes.append([
             InlineKeyboardButton(
                 f"📄 {assunto}",
@@ -1839,7 +1901,7 @@ async def selecionar_topico_assunto_exclusao(update, context):
     ])
 
     await consulta.edit_message_text(
-        f"🗑️ EXCLUIR HISTÓRICO POR ASSUNTO\n\n"
+        "🗑️ EXCLUIR HISTÓRICO POR ASSUNTO\n\n"
         f"📁 Tópico: {topico}\n\n"
         "Escolha o assunto:",
         reply_markup=InlineKeyboardMarkup(botoes)
@@ -1853,19 +1915,39 @@ async def selecionar_topico_assunto_exclusao(update, context):
 async def selecionar_assunto_exclusao(update, context):
 
     consulta = update.callback_query
+
     await consulta.answer()
 
     usuario = context.user_data.get("usuario", {})
+
     login_user = usuario.get("login")
-    disciplina = context.user_data.get("disciplina_painel_atual")
-    topico = context.user_data.get("topico_exclusao_atual")
+
+    disciplina = context.user_data.get(
+        "disciplina_painel_atual"
+    )
+
+    topico = context.user_data.get(
+        "topico_exclusao_atual"
+    )
 
     try:
+
         indice = int(consulta.data.split(":")[1])
-        assuntos = context.user_data.get("opcoes_exclusao", [])
+
+        assuntos = context.user_data.get(
+            "opcoes_exclusao",
+            []
+        )
+
         assunto = assuntos[indice]
+
     except (ValueError, IndexError):
-        await consulta.answer("Assunto inválido.", show_alert=True)
+
+        await consulta.answer(
+            "Assunto inválido.",
+            show_alert=True
+        )
+
         return
 
     quantidade = repositorio.contar_historico_desempenho(
@@ -1876,9 +1958,11 @@ async def selecionar_assunto_exclusao(update, context):
     )
 
     if quantidade == 0:
+
         await consulta.edit_message_text(
             "Este assunto não possui histórico registrado."
         )
+
         return
 
     context.user_data["exclusao_desempenho"] = {
@@ -1906,23 +1990,28 @@ async def mostrar_confirmacao_exclusao(mensagem, context):
     )
 
     if not dados:
+
         await mensagem.reply_text(
             "Não foi possível identificar a exclusão solicitada."
         )
+
         return
 
     nivel = dados["nivel"]
 
     if nivel == "disciplina":
+
         descricao = f"Disciplina: {dados['disciplina']}"
 
     elif nivel == "topico":
+
         descricao = (
             f"Disciplina: {dados['disciplina']}\n"
             f"Tópico: {dados['topico']}"
         )
 
     else:
+
         descricao = (
             f"Disciplina: {dados['disciplina']}\n"
             f"Tópico: {dados['topico']}\n"
@@ -1961,9 +2050,11 @@ async def mostrar_confirmacao_exclusao(mensagem, context):
 async def confirmar_exclusao_desempenho(update, context):
 
     consulta = update.callback_query
+
     await consulta.answer()
 
     usuario = context.user_data.get("usuario", {})
+
     login_user = usuario.get("login")
 
     dados = context.user_data.get(
@@ -1971,13 +2062,16 @@ async def confirmar_exclusao_desempenho(update, context):
     )
 
     if not login_user or not dados:
+
         await consulta.edit_message_text(
             "Não foi possível identificar a operação. "
             "Abra novamente o Painel de Desempenho."
         )
+
         return
 
     disciplina = dados["disciplina"]
+
     nivel = dados["nivel"]
 
     try:
@@ -2008,16 +2102,22 @@ async def confirmar_exclusao_desempenho(update, context):
             )
 
         else:
+
             excluidos = 0
 
     except Exception:
+
         import logging
-        logging.exception("Erro ao excluir histórico de desempenho")
+
+        logging.exception(
+            "Erro ao excluir histórico de desempenho"
+        )
 
         await consulta.edit_message_text(
             "❌ Ocorreu um erro ao excluir o histórico. "
             "Tente novamente mais tarde."
         )
+
         return
 
     context.user_data.pop(
@@ -2026,10 +2126,12 @@ async def confirmar_exclusao_desempenho(update, context):
     )
 
     if excluidos == 0:
+
         await consulta.edit_message_text(
             "ℹ️ Nenhum registro foi excluído. "
             "O histórico pode já ter sido removido."
         )
+
         return
 
     await consulta.edit_message_text(
@@ -2088,12 +2190,15 @@ async def confirmar_exclusao_desempenho(update, context):
             ]
         ])
 
-        for parte in dividir_mensagem(texto):
+        partes = dividir_mensagem(texto)
+
+        for indice, parte in enumerate(partes):
+
             await consulta.message.reply_text(
                 parte,
                 reply_markup=(
                     teclado
-                    if parte == dividir_mensagem(texto)[-1]
+                    if indice == len(partes) - 1
                     else None
                 )
             )
@@ -2121,6 +2226,7 @@ async def confirmar_exclusao_desempenho(update, context):
 async def cancelar_exclusao_desempenho(update, context):
 
     consulta = update.callback_query
+
     await consulta.answer()
 
     context.user_data.pop(
@@ -2133,9 +2239,11 @@ async def cancelar_exclusao_desempenho(update, context):
     )
 
     usuario = context.user_data.get("usuario", {})
+
     login_user = usuario.get("login")
 
     if not disciplina or not login_user:
+
         await consulta.edit_message_text(
             "Operação cancelada.",
             reply_markup=InlineKeyboardMarkup([
@@ -2147,6 +2255,7 @@ async def cancelar_exclusao_desempenho(update, context):
                 ]
             ])
         )
+
         return
 
     registros = repositorio.obter_desempenho_disciplina(
@@ -2154,7 +2263,9 @@ async def cancelar_exclusao_desempenho(update, context):
         disciplina
     )
 
-    grade = repositorio.obter_grade_questoes(login_user)
+    grade = repositorio.obter_grade_questoes(
+        login_user
+    )
 
     grade_disciplina = (
         grade.get("disciplinas", {}).get(disciplina, {})
@@ -2191,4 +2302,73 @@ async def cancelar_exclusao_desempenho(update, context):
     await consulta.edit_message_text(
         texto,
         reply_markup=teclado
+    )
+
+
+# ============================================================
+# MENU DE BLOCOS PARA PDF DE RESOLUÇÃO
+# ============================================================
+
+async def abrir_menu_pdf_resolucao(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
+
+    consulta = update.callback_query
+
+    await consulta.answer()
+
+    todas_questoes = context.user_data.get(
+        "todas_questoes",
+        []
+    )
+
+    if not todas_questoes:
+
+        await consulta.message.reply_text(
+            "⚠️ Não existem questões disponíveis "
+            "para gerar o PDF."
+        )
+
+        return
+
+    quantidade_por_bloco = 10
+
+    total_blocos = math.ceil(
+        len(todas_questoes) / quantidade_por_bloco
+    )
+
+    botoes = []
+
+    for bloco in range(1, total_blocos + 1):
+
+        inicio = (bloco - 1) * quantidade_por_bloco
+
+        fim = min(
+            inicio + quantidade_por_bloco,
+            len(todas_questoes)
+        )
+
+        quantidade = fim - inicio
+
+        botoes.append([
+            InlineKeyboardButton(
+                f"📄 Bloco {bloco} — {quantidade} questões",
+                callback_data=f"resolucao:bloco:{bloco}"
+            )
+        ])
+
+    botoes.append([
+        InlineKeyboardButton(
+            "⬅️ Voltar ao início",
+            callback_data="inicio"
+        )
+    ])
+
+    await consulta.message.reply_text(
+        "📄 PDF DE RESOLUÇÃO\n\n"
+        "Selecione o bloco que deseja transformar em PDF.\n\n"
+        "A geração não inicia o questionário "
+        "e não altera seu desempenho.",
+        reply_markup=InlineKeyboardMarkup(botoes)
     )

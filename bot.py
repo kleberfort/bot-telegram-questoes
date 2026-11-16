@@ -337,6 +337,30 @@ def main():
         group=0
     )
 
+    # ============================================================
+# PDF DE RESOLUÇÃO — ABRIR MENU DE BLOCOS
+# ============================================================
+
+    app.add_handler(
+    CallbackQueryHandler(
+        menus.abrir_menu_pdf_resolucao,
+        pattern=r"^resolucao:menu$"
+    ),
+    group=0
+)
+
+# ============================================================
+# PDF DE RESOLUÇÃO — GERAR ARQUIVO
+# ============================================================
+
+    app.add_handler(
+    CallbackQueryHandler(
+        questoes.gerar_pdf_resolucao_callback,
+        pattern=r"^resolucao:bloco:"
+    ),
+    group=0
+)
+    
     app.add_handler(
         CallbackQueryHandler(
             menus.cancelar_exclusao_desempenho,
@@ -344,6 +368,8 @@ def main():
         ),
         group=0
     )
+
+    
 
     # ============================================================
     # QUESTÕES

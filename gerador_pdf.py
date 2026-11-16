@@ -32,7 +32,9 @@ MARGEM_ESQUERDA = 1.5 * cm
 MARGEM_DIREITA = 1.5 * cm
 
 LARGURA_UTIL = (
-    LARGURA_PAGINA - MARGEM_ESQUERDA - MARGEM_DIREITA
+    LARGURA_PAGINA
+    - MARGEM_ESQUERDA
+    - MARGEM_DIREITA
 )
 
 COR_BORDA = colors.HexColor("#B8C5D3")
@@ -116,10 +118,11 @@ def criar_estilos():
             "Identificacao",
             parent=base["Normal"],
             fontName="Helvetica-Bold",
-            fontSize=8.5,
-            leading=12,
+            fontSize=7.5,
+            leading=10,
             alignment=TA_RIGHT,
             textColor=colors.HexColor("#52647A"),
+            wordWrap="CJK",
         ),
 
         "pequeno": ParagraphStyle(
@@ -170,7 +173,79 @@ def adicionar_numero_pagina(canvas, documento):
 
 
 # ============================================================
-# CABEÇALHO DO CADERNO
+# IDENTIFICAÇÃO DA BANCA / ÓRGÃO / CARGO / ANO
+# ============================================================
+
+def obter_identificacao_questao(questao):
+    """
+    Monta a identificação completa da questão.
+
+    Exemplo:
+    CEBRASPE (CESPE)/TCE MS/Tecnologia da Informação/2025
+
+    Aceita diferentes nomes de campos para facilitar
+    a compatibilidade com os registros existentes.
+    """
+
+    # Caso a identificação completa já esteja armazenada
+    identificacao_direta = (
+        questao.get("identificacao")
+        or questao.get("identificacao_questao")
+        or questao.get("origem_questao")
+    )
+
+    if identificacao_direta:
+        return str(identificacao_direta).strip()
+
+    banca = (
+        questao.get("banca")
+        or questao.get("nome_banca")
+        or ""
+    )
+
+    orgao = (
+        questao.get("orgao")
+        or questao.get("órgão")
+        or questao.get("tribunal")
+        or questao.get("instituicao")
+        or questao.get("instituição")
+        or ""
+    )
+
+    cargo = (
+        questao.get("cargo")
+        or questao.get("funcao")
+        or questao.get("função")
+        or ""
+    )
+
+    ano = (
+        questao.get("ano")
+        or questao.get("ano_prova")
+        or questao.get("ano_concurso")
+        or ""
+    )
+
+    partes = []
+
+    for valor in [banca, orgao, cargo, ano]:
+
+        if valor is not None:
+
+            valor = str(valor).strip()
+
+            if valor:
+                partes.append(valor)
+
+    if not partes:
+        return "Identificação não informada"
+
+    # Formato sem espaços entre as barras
+    return "/".join(partes)
+
+
+# ============================================================
+# CABEÇALHO DO CADERNO DE ERROS
 # ============================================================
 
 def adicionar_cabecalho(dados, elementos, estilos):
@@ -201,7 +276,38 @@ def adicionar_cabecalho(dados, elementos, estilos):
 
 
 # ============================================================
-# DESEMPENHO
+# CABEÇALHO DO PDF DE RESOLUÇÃO
+# ============================================================
+
+def adicionar_cabecalho_resolucao(dados, elementos, estilos):
+
+    disciplina = dados.get("disciplina", "Não informada")
+    topico = dados.get("topico", "Não informado")
+    assunto = dados.get("assunto", "Não informado")
+    bloco = dados.get("bloco", "Não informado")
+
+    elementos.append(
+        Paragraph(
+            "RESOLUÇÃO DE QUESTÕES",
+            estilos["titulo"],
+        )
+    )
+
+    elementos.append(
+        Paragraph(
+            f"<b>Disciplina:</b> {escape(str(disciplina))}<br/>"
+            f"<b>Tópico:</b> {escape(str(topico))}<br/>"
+            f"<b>Assunto:</b> {escape(str(assunto))}<br/>"
+            f"<b>Bloco:</b> {escape(str(bloco))}",
+            estilos["normal"],
+        )
+    )
+
+    elementos.append(Spacer(1, 12))
+
+
+# ============================================================
+# DESEMPENHO DO CADERNO DE ERROS
 # ============================================================
 
 def adicionar_desempenho(dados, elementos, estilos):
@@ -241,19 +347,14 @@ def adicionar_desempenho(dados, elementos, estilos):
         TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), COR_TEXTO),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-
             ("BACKGROUND", (0, 1), (-1, 1), COR_FUNDO),
             ("TEXTCOLOR", (0, 1), (-1, 1), colors.black),
-
             ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
             ("FONTSIZE", (0, 0), (-1, -1), 8),
-
             ("ALIGN", (0, 0), (-1, -1), "CENTER"),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-
             ("BOX", (0, 0), (-1, -1), 0.6, colors.grey),
             ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.grey),
-
             ("TOPPADDING", (0, 0), (-1, -1), 8),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
         ])
@@ -261,35 +362,6 @@ def adicionar_desempenho(dados, elementos, estilos):
 
     elementos.append(tabela)
     elementos.append(Spacer(1, 12))
-
-
-# ============================================================
-# IDENTIFICAÇÃO DA BANCA / ÓRGÃO / CARGO / ANO
-# ============================================================
-
-def obter_identificacao_questao(questao):
-
-    banca = questao.get("banca", "")
-    orgao = (
-        questao.get("orgao")
-        or questao.get("órgão")
-        or questao.get("tribunal")
-        or ""
-    )
-
-    cargo = questao.get("cargo", "")
-    ano = questao.get("ano", "")
-
-    partes = [
-        str(valor)
-        for valor in [banca, orgao, cargo, ano]
-        if valor
-    ]
-
-    if not partes:
-        return "Identificação não informada"
-
-    return " / ".join(partes)
 
 
 # ============================================================
@@ -380,8 +452,6 @@ def carregar_imagem_questao(url, estilos):
 
 def obter_respostas(questao):
 
-    # Aceita o formato novo e o formato anterior.
-
     marcada = questao.get(
         "marcada",
         questao.get(
@@ -407,6 +477,10 @@ def obter_respostas(questao):
     return marcada, gabarito
 
 
+# ============================================================
+# TABELA DE RESPOSTAS DO CADERNO DE ERROS
+# ============================================================
+
 def criar_tabela_respostas(questao, largura):
 
     marcada, gabarito = obter_respostas(questao)
@@ -423,19 +497,25 @@ def criar_tabela_respostas(questao, largura):
 
     tabela = Table(
         [[
-            Paragraph(texto_marcada, ParagraphStyle(
-                "RespostaMarcada",
-                fontName="Helvetica-Bold",
-                fontSize=9,
-                leading=12,
-            )),
+            Paragraph(
+                texto_marcada,
+                ParagraphStyle(
+                    "RespostaMarcada",
+                    fontName="Helvetica-Bold",
+                    fontSize=9,
+                    leading=12,
+                ),
+            ),
 
-            Paragraph(texto_gabarito, ParagraphStyle(
-                "RespostaCorreta",
-                fontName="Helvetica-Bold",
-                fontSize=9,
-                leading=12,
-            )),
+            Paragraph(
+                texto_gabarito,
+                ParagraphStyle(
+                    "RespostaCorreta",
+                    fontName="Helvetica-Bold",
+                    fontSize=9,
+                    leading=12,
+                ),
+            ),
         ]],
         colWidths=[
             largura / 2,
@@ -447,11 +527,9 @@ def criar_tabela_respostas(questao, largura):
         TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), COR_FUNDO),
             ("BOX", (0, 0), (-1, -1), 0.5, COR_BORDA),
-
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("LEFTPADDING", (0, 0), (-1, -1), 8),
             ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-
             ("TOPPADDING", (0, 0), (-1, -1), 8),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
         ])
@@ -481,9 +559,6 @@ def adicionar_motivos_erro(questao, linhas, estilos, largura):
             estilos["subtitulo"],
         )
     ])
-
-    # Identifica automaticamente o motivo informado.
-    # Os demais ficam disponíveis para marcação manual.
 
     colunas = [
         3.7 * cm,
@@ -517,18 +592,14 @@ def adicionar_motivos_erro(questao, linhas, estilos, largura):
     tabela.setStyle(
         TableStyle([
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-
             ("LEFTPADDING", (0, 0), (-1, -1), 2),
             ("RIGHTPADDING", (0, 0), (-1, -1), 2),
-
             ("TOPPADDING", (0, 0), (-1, -1), 5),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
         ])
     )
 
     linhas.append([tabela])
-
-    # Outro, caso tenha sido selecionado.
 
     if motivo_normalizado == "outro":
 
@@ -548,35 +619,29 @@ def adicionar_motivos_erro(questao, linhas, estilos, largura):
             )
         ])
 
-    # --------------------------------------------------------
-    # EXPLICAÇÃO DO ERRO
-    # --------------------------------------------------------
+
+# ============================================================
+# ÁREA ÚNICA DE RESOLUÇÃO / ANOTAÇÕES
+# ============================================================
+
+def adicionar_area_resolucao_anotacoes(
+    linhas,
+    largura,
+    estilos,
+    altura=5 * cm,
+):
+    """
+    Cria uma única área em branco para resolução e anotações.
+    Substitui os espaços separados utilizados anteriormente.
+    """
 
     linhas.append([
-        Paragraph(
-            "<b>Por que errei / Conceito-chave para memorizar:</b>",
-            estilos["normal"],
-        )
+        Spacer(1, 8)
     ])
 
-    # Linhas para escrita manual.
-
-    for _ in range(3):
-
-        linhas.append([""])
-
-    return linhas
-
-
-# ============================================================
-# ÁREA PARA ANOTAÇÕES
-# ============================================================
-
-def adicionar_area_anotacoes(linhas, largura, estilos):
-
     linhas.append([
         Paragraph(
-            "ANOTAÇÕES",
+            "RESOLUÇÃO / ANOTAÇÕES",
             estilos["anotacao"],
         )
     ])
@@ -584,45 +649,34 @@ def adicionar_area_anotacoes(linhas, largura, estilos):
     area = Table(
         [[""]],
         colWidths=[largura],
-        rowHeights=[5 * cm],
+        rowHeights=[altura],
     )
 
     area.setStyle(
         TableStyle([
             ("BOX", (0, 0), (-1, -1), 0.6, COR_BORDA),
             ("BACKGROUND", (0, 0), (-1, -1), colors.white),
-
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ("LEFTPADDING", (0, 0), (-1, -1), 5),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 5),
             ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
         ])
     )
 
     linhas.append([area])
 
-    linhas.append([
-        Paragraph(
-            "[ ] QUESTÃO REVISADA",
-            estilos["normal"],
-        )
-    ])
-
 
 # ============================================================
-# MONTAGEM DA QUESTÃO COM BORDA EXTERNA
+# CABEÇALHO VISUAL DE CADA QUESTÃO
 # ============================================================
 
-def adicionar_questao(questao, numero, elementos, estilos):
-
-    # Largura interna da moldura.
-
-    largura_interna = LARGURA_UTIL - 0.5 * cm
-
-    linhas = []
-
-    # --------------------------------------------------------
-    # 1. IDENTIFICAÇÃO DA QUESTÃO
-    # --------------------------------------------------------
+def criar_cabecalho_questao(
+    questao,
+    numero,
+    estilos,
+    largura_interna,
+):
 
     identificacao = obter_identificacao_questao(
         questao
@@ -649,22 +703,30 @@ def adicionar_questao(questao, numero, elementos, estilos):
     cabecalho.setStyle(
         TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), COR_CABECALHO),
-
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-
             ("LEFTPADDING", (0, 0), (-1, -1), 8),
             ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-
             ("TOPPADDING", (0, 0), (-1, -1), 9),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
         ])
     )
 
-    linhas.append([cabecalho])
+    return cabecalho
 
-    # --------------------------------------------------------
-    # 2. ENUNCIADO
-    # --------------------------------------------------------
+
+# ============================================================
+# ADICIONAR ENUNCIADO, IMAGEM E ALTERNATIVAS
+# ============================================================
+
+def adicionar_conteudo_questao(
+    questao,
+    linhas,
+    estilos,
+):
+    """
+    Adiciona o enunciado, a imagem e as alternativas.
+    Utilizado pelos dois modelos de PDF.
+    """
 
     enunciado = questao.get(
         "enunciado_completo",
@@ -678,15 +740,11 @@ def adicionar_questao(questao, numero, elementos, estilos):
         Paragraph(
             escape(str(enunciado)).replace(
                 "\n",
-                "<br/>"
+                "<br/>",
             ),
             estilos["questao"],
         )
     ])
-
-    # --------------------------------------------------------
-    # 3. IMAGEM
-    # --------------------------------------------------------
 
     telegram_config = questao.get(
         "telegram_config",
@@ -705,21 +763,9 @@ def adicionar_questao(questao, numero, elementos, estilos):
 
     if imagem:
 
-        linhas.append([
-            Spacer(1, 5)
-        ])
-
-        linhas.append([
-            imagem
-        ])
-
-        linhas.append([
-            Spacer(1, 5)
-        ])
-
-    # --------------------------------------------------------
-    # 4. ALTERNATIVAS
-    # --------------------------------------------------------
+        linhas.append([Spacer(1, 5)])
+        linhas.append([imagem])
+        linhas.append([Spacer(1, 5)])
 
     alternativas = questao.get(
         "alternativas",
@@ -752,13 +798,33 @@ def adicionar_questao(questao, numero, elementos, estilos):
                 )
             ])
 
-    # --------------------------------------------------------
-    # 5. RESPOSTA E GABARITO
-    # --------------------------------------------------------
 
-    linhas.append([
-        Spacer(1, 5)
-    ])
+# ============================================================
+# MONTAGEM DA QUESTÃO DO CADERNO DE ERROS
+# ============================================================
+
+def adicionar_questao(questao, numero, elementos, estilos):
+
+    largura_interna = LARGURA_UTIL - 0.5 * cm
+
+    linhas = []
+
+    cabecalho = criar_cabecalho_questao(
+        questao,
+        numero,
+        estilos,
+        largura_interna,
+    )
+
+    linhas.append([cabecalho])
+
+    adicionar_conteudo_questao(
+        questao,
+        linhas,
+        estilos,
+    )
+
+    linhas.append([Spacer(1, 5)])
 
     linhas.append([
         criar_tabela_respostas(
@@ -766,10 +832,6 @@ def adicionar_questao(questao, numero, elementos, estilos):
             largura_interna,
         )
     ])
-
-    # --------------------------------------------------------
-    # 6. COMENTÁRIO / EXPLICAÇÃO
-    # --------------------------------------------------------
 
     comentario = questao.get(
         "comentario",
@@ -789,15 +851,11 @@ def adicionar_questao(questao, numero, elementos, estilos):
             Paragraph(
                 escape(str(comentario)).replace(
                     "\n",
-                    "<br/>"
+                    "<br/>",
                 ),
                 estilos["questao"],
             )
         ])
-
-    # --------------------------------------------------------
-    # 7. MOTIVO DO ERRO
-    # --------------------------------------------------------
 
     adicionar_motivos_erro(
         questao,
@@ -806,19 +864,13 @@ def adicionar_questao(questao, numero, elementos, estilos):
         largura_interna,
     )
 
-    # --------------------------------------------------------
-    # 8. ANOTAÇÕES
-    # --------------------------------------------------------
-
-    adicionar_area_anotacoes(
+    # Uma única área para resolução e anotações
+    adicionar_area_resolucao_anotacoes(
         linhas,
         largura_interna,
         estilos,
+        altura=5 * cm,
     )
-
-    # --------------------------------------------------------
-    # 9. TABELA EXTERNA COM BORDA
-    # --------------------------------------------------------
 
     tabela_questao = Table(
         linhas,
@@ -829,57 +881,108 @@ def adicionar_questao(questao, numero, elementos, estilos):
 
     tabela_questao.setStyle(
         TableStyle([
-
-            # Borda externa envolvendo a questão inteira.
-
             ("BOX", (0, 0), (-1, -1), 1, COR_BORDA),
-
-            # Fundo do cabeçalho.
-
             ("BACKGROUND", (0, 0), (-1, 0), COR_CABECALHO),
-
-            # Alinhamento.
-
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-
-            # Espaçamento interno.
-
             ("LEFTPADDING", (0, 0), (-1, -1), 7),
             ("RIGHTPADDING", (0, 0), (-1, -1), 7),
-
             ("TOPPADDING", (0, 0), (-1, -1), 3),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-
-            # Separação entre cabeçalho e conteúdo.
-
             ("LINEBELOW", (0, 0), (-1, 0), 0.6, COR_BORDA),
-
         ])
     )
 
-    elementos.append(
-        tabela_questao
-    )
-
-    elementos.append(
-        Spacer(1, 15)
-    )
+    elementos.append(tabela_questao)
+    elementos.append(Spacer(1, 15))
 
 
 # ============================================================
-# FUNÇÃO PRINCIPAL
+# MONTAGEM DA QUESTÃO PARA RESOLUÇÃO
+# ============================================================
+
+def adicionar_questao_resolucao(
+    questao,
+    numero,
+    elementos,
+    estilos,
+):
+    """
+    Monta uma questão sem resposta marcada, gabarito,
+    comentário, motivo de erro ou desempenho.
+    """
+
+    largura_interna = LARGURA_UTIL - 0.5 * cm
+
+    linhas = []
+
+    cabecalho = criar_cabecalho_questao(
+        questao,
+        numero,
+        estilos,
+        largura_interna,
+    )
+
+    linhas.append([cabecalho])
+
+    adicionar_conteudo_questao(
+        questao,
+        linhas,
+        estilos,
+    )
+
+    # Uma única área para resolução e anotações
+    adicionar_area_resolucao_anotacoes(
+        linhas,
+        largura_interna,
+        estilos,
+        altura=5 * cm,
+    )
+
+    tabela_questao = Table(
+        linhas,
+        colWidths=[LARGURA_UTIL],
+        splitByRow=1,
+        hAlign="LEFT",
+    )
+
+    tabela_questao.setStyle(
+        TableStyle([
+            ("BOX", (0, 0), (-1, -1), 1, COR_BORDA),
+            ("BACKGROUND", (0, 0), (-1, 0), COR_CABECALHO),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 7),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("LINEBELOW", (0, 0), (-1, 0), 0.6, COR_BORDA),
+        ])
+    )
+
+    elementos.append(tabela_questao)
+    elementos.append(Spacer(1, 15))
+
+
+# ============================================================
+# FUNÇÃO PRINCIPAL — CADERNO DE ERROS
 # ============================================================
 
 def gerar_pdf_erros(dados):
-
     """
     Gera o Caderno de Erros em PDF.
 
-    Parâmetro:
-        dados: dicionário contendo os dados do bloco.
+    Inclui:
+    - Identificação da banca, órgão, cargo e ano;
+    - Enunciado;
+    - Imagem, quando disponível;
+    - Alternativas;
+    - Resposta marcada;
+    - Gabarito oficial;
+    - Comentário;
+    - Motivo do erro;
+    - Área de resolução e anotações;
+    - Desempenho do bloco.
 
-    Retorno:
-        BytesIO: arquivo PDF em memória.
+    Retorna um arquivo BytesIO.
     """
 
     arquivo = BytesIO()
@@ -887,24 +990,16 @@ def gerar_pdf_erros(dados):
     documento = SimpleDocTemplate(
         arquivo,
         pagesize=A4,
-
         rightMargin=MARGEM_DIREITA,
         leftMargin=MARGEM_ESQUERDA,
-
         topMargin=1.5 * cm,
         bottomMargin=1.7 * cm,
-
         title="Caderno de Erros",
         author="Bot de Questões",
     )
 
     estilos = criar_estilos()
-
     elementos = []
-
-    # --------------------------------------------------------
-    # CABEÇALHO
-    # --------------------------------------------------------
 
     adicionar_cabecalho(
         dados,
@@ -912,19 +1007,11 @@ def gerar_pdf_erros(dados):
         estilos,
     )
 
-    # --------------------------------------------------------
-    # DESEMPENHO
-    # --------------------------------------------------------
-
     adicionar_desempenho(
         dados,
         elementos,
         estilos,
     )
-
-    # --------------------------------------------------------
-    # QUESTÕES PARA REVISÃO
-    # --------------------------------------------------------
 
     questoes_erradas = dados.get(
         "questoes_erradas",
@@ -938,10 +1025,6 @@ def gerar_pdf_erros(dados):
         )
     )
 
-    # --------------------------------------------------------
-    # GERAR CADA QUESTÃO
-    # --------------------------------------------------------
-
     for numero, questao in enumerate(
         questoes_erradas,
         start=1,
@@ -954,10 +1037,6 @@ def gerar_pdf_erros(dados):
             estilos,
         )
 
-    # --------------------------------------------------------
-    # NENHUMA QUESTÃO ERRADA
-    # --------------------------------------------------------
-
     if not questoes_erradas:
 
         elementos.append(
@@ -967,13 +1046,99 @@ def gerar_pdf_erros(dados):
             )
         )
 
-    # --------------------------------------------------------
-    # CONSTRUIR PDF
-    # --------------------------------------------------------
+    documento.build(
+        elementos,
+        onFirstPage=adicionar_numero_pagina,
+        onLaterPages=adicionar_numero_pagina,
+    )
+
+    arquivo.seek(0)
+
+    return arquivo
+
+
+# ============================================================
+# FUNÇÃO PRINCIPAL — PDF DE RESOLUÇÃO
+# ============================================================
+
+def gerar_pdf_resolucao(dados):
+    """
+    Gera um PDF independente para resolução de questões.
+
+    Inclui:
+    - Identificação da banca, órgão, cargo e ano;
+    - Enunciado;
+    - Imagem, quando disponível;
+    - Alternativas;
+    - Uma única área de resolução e anotações.
+
+    Não inclui:
+    - Resposta marcada;
+    - Gabarito;
+    - Comentários;
+    - Motivos de erro;
+    - Desempenho do usuário.
+
+    Retorna um arquivo BytesIO.
+    """
+
+    arquivo = BytesIO()
+
+    documento = SimpleDocTemplate(
+        arquivo,
+        pagesize=A4,
+        rightMargin=MARGEM_DIREITA,
+        leftMargin=MARGEM_ESQUERDA,
+        topMargin=1.5 * cm,
+        bottomMargin=1.7 * cm,
+        title="Resolução de Questões",
+        author="Bot de Questões",
+    )
+
+    estilos = criar_estilos()
+    elementos = []
+
+    adicionar_cabecalho_resolucao(
+        dados,
+        elementos,
+        estilos,
+    )
+
+    questoes = dados.get(
+        "questoes",
+        [],
+    )
+
+    elementos.append(
+        Paragraph(
+            f"QUESTÕES DO BLOCO: {len(questoes)}",
+            estilos["subtitulo"],
+        )
+    )
+
+    for numero, questao in enumerate(
+        questoes,
+        start=1,
+    ):
+
+        adicionar_questao_resolucao(
+            questao,
+            numero,
+            elementos,
+            estilos,
+        )
+
+    if not questoes:
+
+        elementos.append(
+            Paragraph(
+                "Nenhuma questão foi encontrada neste bloco.",
+                estilos["normal"],
+            )
+        )
 
     documento.build(
         elementos,
-
         onFirstPage=adicionar_numero_pagina,
         onLaterPages=adicionar_numero_pagina,
     )

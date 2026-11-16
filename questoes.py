@@ -8,12 +8,15 @@ from telegram.ext import ConversationHandler
 from copy import deepcopy
 from uuid import uuid4
 
-from gerador_pdf import gerar_pdf_erros as construir_pdf_erros
+from gerador_pdf import (
+    gerar_pdf_erros as construir_pdf_erros,
+    gerar_pdf_resolucao as construir_pdf_resolucao,
+)
 
 from repositorio import (
     salvar_comentario_personalizado,
     obter_comentario_personalizado,
-    salvar_desempenho
+    salvar_desempenho,
 )
 
 
@@ -51,7 +54,7 @@ def iniciar_desempenho(context):
         "total": 0,
         "acertos": 0,
         "erros": 0,
-        "questoes_erradas": []
+        "questoes_erradas": [],
     }
 
     # Identifica esta execução do bloco para evitar registros duplicados.
@@ -69,7 +72,7 @@ def montar_comentario(
     questao,
     alternativa_marcada,
     gabarito,
-    comentario_personalizado=None
+    comentario_personalizado=None,
 ):
 
     partes = []
@@ -157,7 +160,7 @@ def montar_teclado_voltar_inicio():
         [
             InlineKeyboardButton(
                 "🏠 Voltar ao Início",
-                callback_data="inicio"
+                callback_data="inicio",
             )
         ]
     ])
@@ -174,15 +177,15 @@ def montar_teclado_confirmar_encerramento():
         [
             InlineKeyboardButton(
                 "✅ Sim, encerrar bloco",
-                callback_data="bloco:encerrar_confirmado"
+                callback_data="bloco:encerrar_confirmado",
             )
         ],
         [
             InlineKeyboardButton(
                 "❌ Não, continuar respondendo",
-                callback_data="bloco:continuar"
+                callback_data="bloco:continuar",
             )
-        ]
+        ],
     ])
 
 
@@ -196,7 +199,7 @@ async def solicitar_confirmacao_encerramento(update, context):
 
         await consulta.message.reply_text(
             "Este bloco já foi concluído.",
-            reply_markup=montar_teclado_voltar_inicio()
+            reply_markup=montar_teclado_voltar_inicio(),
         )
 
         return
@@ -207,7 +210,7 @@ async def solicitar_confirmacao_encerramento(update, context):
         "e o resultado parcial não será registrado como "
         "um bloco concluído.\n\n"
         "Deseja realmente sair?",
-        reply_markup=montar_teclado_confirmar_encerramento()
+        reply_markup=montar_teclado_confirmar_encerramento(),
     )
 
 
@@ -231,7 +234,7 @@ async def confirmar_encerramento_bloco(update, context):
         "disciplina",
         "topico",
         "assunto",
-        "bloco_atual"
+        "bloco_atual",
     ]
 
     for chave in chaves_questionario:
@@ -243,7 +246,7 @@ async def confirmar_encerramento_bloco(update, context):
         "✅ BLOCO ENCERRADO!\n\n"
         "Seu resultado parcial não foi salvo como bloco concluído.\n"
         "Você pode retornar ao menu inicial.",
-        reply_markup=montar_teclado_voltar_inicio()
+        reply_markup=montar_teclado_voltar_inicio(),
     )
 
 
@@ -269,7 +272,10 @@ async def cancelar_encerramento_bloco(update, context):
 # MONTAR TECLADO DE FINALIZAÇÃO
 # ============================================================
 
-def montar_teclado_finalizacao(questoes_erradas, permitir_salvamento=True):
+def montar_teclado_finalizacao(
+    questoes_erradas,
+    permitir_salvamento=True,
+):
     """
     Monta os botões exibidos ao finalizar o questionário.
 
@@ -284,7 +290,7 @@ def montar_teclado_finalizacao(questoes_erradas, permitir_salvamento=True):
         botoes.append([
             InlineKeyboardButton(
                 "📄 Gerar PDF das Questões Erradas",
-                callback_data="erros:pdf"
+                callback_data="erros:pdf",
             )
         ])
 
@@ -295,21 +301,21 @@ def montar_teclado_finalizacao(questoes_erradas, permitir_salvamento=True):
         botoes.append([
             InlineKeyboardButton(
                 "✅ Sim, salvar desempenho",
-                callback_data="desempenho:salvar"
+                callback_data="desempenho:salvar",
             )
         ])
 
         botoes.append([
             InlineKeyboardButton(
                 "❌ Não, obrigado",
-                callback_data="desempenho:nao_salvar"
+                callback_data="desempenho:nao_salvar",
             )
         ])
 
     botoes.append([
         InlineKeyboardButton(
             "🏠 Voltar ao Início",
-            callback_data="inicio"
+            callback_data="inicio",
         )
     ])
 
@@ -395,7 +401,7 @@ async def exibir_questao(mensagem, context):
         # Monta o teclado de finalização.
         teclado_finalizacao = montar_teclado_finalizacao(
             questoes_erradas=questoes_erradas,
-            permitir_salvamento=bool(login_user and total > 0)
+            permitir_salvamento=bool(login_user and total > 0),
         )
 
         # ----------------------------------------------------
@@ -411,7 +417,7 @@ async def exibir_questao(mensagem, context):
                 "📊 Deseja salvar o resultado deste bloco "
                 "no seu Painel de Desempenho?\n\n"
                 "Você também pode gerar um PDF das questões erradas.",
-                reply_markup=teclado_finalizacao
+                reply_markup=teclado_finalizacao,
             )
 
         # ----------------------------------------------------
@@ -425,7 +431,7 @@ async def exibir_questao(mensagem, context):
                 "⚠️ Faça login para salvar seu desempenho no painel.\n\n"
                 "Você pode gerar o PDF das questões erradas "
                 "sem precisar salvar o resultado.",
-                reply_markup=teclado_finalizacao
+                reply_markup=teclado_finalizacao,
             )
 
         return
@@ -490,7 +496,7 @@ async def exibir_questao(mensagem, context):
         botoes.append([
             InlineKeyboardButton(
                 letra,
-                callback_data=f"responder:{letra}"
+                callback_data=f"responder:{letra}",
             )
         ])
 
@@ -514,7 +520,7 @@ async def exibir_questao(mensagem, context):
 
             logging.exception(
                 "Não foi possível enviar a imagem da questão %s",
-                questao.get("_id")
+                questao.get("_id"),
             )
 
             await mensagem.reply_text(
@@ -528,7 +534,7 @@ async def exibir_questao(mensagem, context):
 
     await mensagem.reply_text(
         texto,
-        reply_markup=teclado
+        reply_markup=teclado,
     )
 
 
@@ -549,7 +555,7 @@ async def responder(update, context):
         "DIAGNÓSTICO TELEGRAM |",
         "telegram_id:", update.effective_user.id,
         "| chat_id:", update.effective_chat.id,
-        "| login:", login_user
+        "| login:", login_user,
     )
 
     # Impede que a mesma questão seja respondida mais de uma vez.
@@ -557,7 +563,7 @@ async def responder(update, context):
 
         await consulta.answer(
             "Você já respondeu esta questão.",
-            show_alert=True
+            show_alert=True,
         )
 
         return
@@ -588,7 +594,7 @@ async def responder(update, context):
 
         await consulta.answer(
             "Alternativa inválida.",
-            show_alert=True
+            show_alert=True,
         )
 
         return
@@ -612,8 +618,8 @@ async def responder(update, context):
             "total": 0,
             "acertos": 0,
             "erros": 0,
-            "questoes_erradas": []
-        }
+            "questoes_erradas": [],
+        },
     )
 
     context.user_data["respondida"] = True
@@ -652,7 +658,7 @@ async def responder(update, context):
 
         questao_erro["assunto"] = questao.get(
             "assunto",
-            context.user_data.get("assunto", "")
+            context.user_data.get("assunto", ""),
         )
 
         # Mantém a questão errada apenas na memória.
@@ -672,7 +678,7 @@ async def responder(update, context):
 
             comentario_personalizado = obter_comentario_personalizado(
                 login_user,
-                str(questao["_id"])
+                str(questao["_id"]),
             )
 
         except Exception:
@@ -689,7 +695,7 @@ async def responder(update, context):
         questao,
         alternativa,
         gabarito,
-        comentario_personalizado=comentario_personalizado
+        comentario_personalizado=comentario_personalizado,
     )
 
     # --------------------------------------------------------
@@ -711,27 +717,27 @@ async def responder(update, context):
         [
             InlineKeyboardButton(
                 "✏️ Editar meu comentário",
-                callback_data="editar_comentario"
+                callback_data="editar_comentario",
             )
         ],
         [
             InlineKeyboardButton(
                 "➡️ Próxima questão",
-                callback_data="proxima"
+                callback_data="proxima",
             )
         ],
         [
             InlineKeyboardButton(
                 "🏠 Voltar ao início",
-                callback_data="bloco:confirmar_encerramento"
+                callback_data="bloco:confirmar_encerramento",
             )
-        ]
+        ],
     ])
 
     # Exibe o resultado e as opções de navegação.
     await consulta.message.reply_text(
         texto,
-        reply_markup=botoes
+        reply_markup=botoes,
     )
 
 
@@ -758,7 +764,7 @@ async def proxima(update, context):
 
         await consulta.answer(
             "Responda à questão antes de avançar.",
-            show_alert=True
+            show_alert=True,
         )
 
         return
@@ -773,7 +779,7 @@ async def proxima(update, context):
 
     await exibir_questao(
         consulta.message,
-        context
+        context,
     )
 
 
@@ -838,7 +844,7 @@ async def receber_comentario_personalizado(update, context):
         "telegram_id:", update.effective_user.id,
         "| chat_id:", update.effective_chat.id,
         "| login:", context.user_data.get("usuario", {}).get("login"),
-        "| login da questão:", context.user_data.get("questao_login_user")
+        "| login da questão:", context.user_data.get("questao_login_user"),
     )
 
     if not mensagem or not mensagem.text:
@@ -888,7 +894,7 @@ async def receber_comentario_personalizado(update, context):
         salvo = salvar_comentario_personalizado(
             login_user,
             id_questao,
-            comentario
+            comentario,
         )
 
     except Exception:
@@ -991,14 +997,12 @@ async def gerar_pdf_erros_callback(update, context):
     # --------------------------------------------------------
 
     total = desempenho.get("total", 0)
-
     acertos = desempenho.get("acertos", 0)
-
     erros = desempenho.get("erros", 0)
 
     percentual = round(
         (acertos / total) * 100,
-        1
+        1,
     ) if total else 0
 
     # --------------------------------------------------------
@@ -1008,32 +1012,32 @@ async def gerar_pdf_erros_callback(update, context):
     dados_pdf = {
         "disciplina": context.user_data.get(
             "disciplina",
-            "Não informada"
+            "Não informada",
         ),
 
         "topico": context.user_data.get(
             "topico",
-            "Não informado"
+            "Não informado",
         ),
 
         "assunto": context.user_data.get(
             "assunto",
-            "Não informado"
+            "Não informado",
         ),
 
         "bloco": context.user_data.get(
             "bloco_atual",
-            1
+            1,
         ),
 
         "desempenho": {
             "total": total,
             "acertos": acertos,
             "erros": erros,
-            "percentual": percentual
+            "percentual": percentual,
         },
 
-        "questoes_erradas": questoes_erradas
+        "questoes_erradas": questoes_erradas,
     }
 
     mensagem = None
@@ -1055,7 +1059,7 @@ async def gerar_pdf_erros_callback(update, context):
 
         arquivo_pdf = await asyncio.to_thread(
             construir_pdf_erros,
-            dados_pdf
+            dados_pdf,
         )
 
         arquivo_pdf.seek(0)
@@ -1076,12 +1080,11 @@ async def gerar_pdf_erros_callback(update, context):
                 f"Questões erradas: {erros}\n"
                 f"Aproveitamento: {percentual}%\n\n"
                 "Utilize este material para revisar seus erros."
-            )
+            ),
         )
 
         # Remove a mensagem de preparação.
         if mensagem:
-
             await mensagem.delete()
 
     except Exception:
@@ -1092,6 +1095,180 @@ async def gerar_pdf_erros_callback(update, context):
 
         await consulta.message.reply_text(
             "❌ Não foi possível gerar seu Caderno de Erros.\n\n"
+            "Tente novamente. Se o problema persistir, "
+            "verifique os registros de erro do aplicativo."
+        )
+
+
+# ============================================================
+# NOVO PDF — RESOLUÇÃO DE QUESTÕES
+# ============================================================
+
+async def gerar_pdf_resolucao_callback(update, context):
+    """
+    Gera um PDF de resolução sem iniciar o questionário.
+
+    Recebe callback_data no formato:
+        resolucao:bloco:N
+
+    Utiliza a lista completa de questões do assunto, armazenada
+    em context.user_data["todas_questoes"].
+
+    Não altera:
+    - O bloco atual do questionário;
+    - O índice da questão;
+    - O desempenho;
+    - O resultado do usuário.
+    """
+
+    consulta = update.callback_query
+
+    await consulta.answer()
+
+    # --------------------------------------------------------
+    # IDENTIFICAR O BLOCO SELECIONADO
+    # --------------------------------------------------------
+
+    try:
+
+        partes = consulta.data.split(":")
+
+        if len(partes) != 3 or partes[0] != "resolucao":
+            raise ValueError("Formato de callback inválido.")
+
+        numero_bloco = int(partes[2])
+
+        if numero_bloco < 1:
+            raise ValueError("Número de bloco inválido.")
+
+    except (ValueError, IndexError):
+
+        await consulta.message.reply_text(
+            "❌ Não foi possível identificar o bloco selecionado."
+        )
+
+        return
+
+    # --------------------------------------------------------
+    # RECUPERAR QUESTÕES DO ASSUNTO
+    # --------------------------------------------------------
+
+    todas_questoes = context.user_data.get(
+        "todas_questoes",
+        [],
+    )
+
+    if not todas_questoes:
+
+        await consulta.message.reply_text(
+            "⚠️ Não encontrei questões disponíveis para este assunto.\n\n"
+            "Volte ao menu de assuntos e selecione novamente."
+        )
+
+        return
+
+    # --------------------------------------------------------
+    # CALCULAR INTERVALO DO BLOCO
+    # --------------------------------------------------------
+
+    quantidade_por_bloco = 10
+
+    inicio = (numero_bloco - 1) * quantidade_por_bloco
+    fim = inicio + quantidade_por_bloco
+
+    questoes_bloco = todas_questoes[inicio:fim]
+
+    if not questoes_bloco:
+
+        await consulta.message.reply_text(
+            "⚠️ O bloco selecionado não possui questões disponíveis."
+        )
+
+        return
+
+    # --------------------------------------------------------
+    # ORGANIZAR DADOS PARA O PDF
+    # --------------------------------------------------------
+
+    dados_pdf = {
+        "disciplina": context.user_data.get(
+            "disciplina",
+            "Não informada",
+        ),
+
+        "topico": context.user_data.get(
+            "topico",
+            "Não informado",
+        ),
+
+        "assunto": context.user_data.get(
+            "assunto",
+            "Não informado",
+        ),
+
+        "bloco": numero_bloco,
+
+        "questoes": questoes_bloco,
+    }
+
+    mensagem = None
+
+    try:
+
+        # ----------------------------------------------------
+        # AVISAR QUE O PDF ESTÁ SENDO GERADO
+        # ----------------------------------------------------
+
+        mensagem = await consulta.message.reply_text(
+            "📄 Preparando seu PDF de Resolução...\n\n"
+            "Aguarde enquanto organizo as questões e gero o arquivo."
+        )
+
+        # ----------------------------------------------------
+        # GERAR PDF SEM BLOQUEAR O BOT
+        # ----------------------------------------------------
+
+        arquivo_pdf = await asyncio.to_thread(
+            construir_pdf_resolucao,
+            dados_pdf,
+        )
+
+        arquivo_pdf.seek(0)
+
+        nome_arquivo = f"resolucao_questoes_bloco_{numero_bloco}.pdf"
+
+        arquivo_pdf.name = nome_arquivo
+
+        # ----------------------------------------------------
+        # ENVIAR PDF PELO TELEGRAM
+        # ----------------------------------------------------
+
+        await consulta.message.reply_document(
+            document=arquivo_pdf,
+            filename=nome_arquivo,
+            caption=(
+                "📄 PDF DE RESOLUÇÃO GERADO!\n\n"
+                f"Disciplina: {dados_pdf['disciplina']}\n"
+                f"Tópico: {dados_pdf['topico']}\n"
+                f"Assunto: {dados_pdf['assunto']}\n"
+                f"Bloco: {numero_bloco}\n"
+                f"Questões: {len(questoes_bloco)}\n\n"
+                "Utilize o espaço disponível para resolver e fazer anotações."
+            ),
+        )
+
+        # Remove a mensagem de preparação.
+        if mensagem:
+            await mensagem.delete()
+
+    except Exception:
+
+        logging.exception(
+            "Erro ao gerar ou enviar o PDF de Resolução."
+        )
+
+        await consulta.message.reply_text(
+            "❌ Não foi possível gerar seu PDF de Resolução.\n\n"
             "Tente novamente. Se o problema persistir, "
             "verifique os registros de erro do aplicativo."
         )
@@ -1113,7 +1290,7 @@ async def confirmar_salvamento_desempenho(update, context):
 
         await consulta.answer(
             "Este resultado já foi processado.",
-            show_alert=True
+            show_alert=True,
         )
 
         return
@@ -1145,7 +1322,7 @@ async def confirmar_salvamento_desempenho(update, context):
             bloco=context.user_data.get("bloco_atual", 1),
             total=desempenho.get("total", 0),
             acertos=desempenho.get("acertos", 0),
-            erros=desempenho.get("erros", 0)
+            erros=desempenho.get("erros", 0),
         )
 
     except Exception:
@@ -1172,7 +1349,7 @@ async def confirmar_salvamento_desempenho(update, context):
         await consulta.message.reply_text(
             "✅ DESEMPENHO SALVO COM SUCESSO!\n\n"
             "Seu resultado já está registrado no Painel de Desempenho.",
-            reply_markup=montar_teclado_voltar_inicio()
+            reply_markup=montar_teclado_voltar_inicio(),
         )
 
     else:
@@ -1194,7 +1371,7 @@ async def descartar_salvamento_desempenho(update, context):
 
         await consulta.answer(
             "Esta confirmação já foi processada.",
-            show_alert=True
+            show_alert=True,
         )
 
         return
@@ -1208,5 +1385,5 @@ async def descartar_salvamento_desempenho(update, context):
     await consulta.message.reply_text(
         "ℹ️ Resultado não salvo no Painel de Desempenho.\n\n"
         "Você pode continuar seus estudos pelo menu inicial.",
-        reply_markup=montar_teclado_voltar_inicio()
+        reply_markup=montar_teclado_voltar_inicio(),
     )
